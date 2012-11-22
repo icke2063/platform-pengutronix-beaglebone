@@ -1,0 +1,22 @@
+From f650c07353651edeb2f3b56fc5628ca48e60609d Mon Sep 17 00:00:00 2001
+From: Koen Kooi <koen@dominion.thruhere.net>
+Date: Mon, 17 Sep 2012 10:34:22 +0200
+Subject: [PATCH] PWM: ti-ehrpwm: fix up merge conflict
+
+Signed-off-by: Koen Kooi <koen@dominion.thruhere.net>
+---
+ drivers/pwm/pwm-tiehrpwm.c |    1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/pwm/pwm-tiehrpwm.c b/drivers/pwm/pwm-tiehrpwm.c
+index d3c1dff..288f93e 100644
+--- a/drivers/pwm/pwm-tiehrpwm.c
++++ b/drivers/pwm/pwm-tiehrpwm.c
+@@ -113,6 +113,7 @@ struct ehrpwm_pwm_chip {
+ 	struct pwm_chip	chip;
+ 	unsigned int	clk_rate;
+ 	void __iomem	*mmio_base;
++	unsigned long duty_cycles;
+ 	unsigned long period_cycles[NUM_PWM_CHANNEL];
+ 	enum pwm_polarity polarity[NUM_PWM_CHANNEL];
+ };

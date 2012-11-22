@@ -1,0 +1,22 @@
+From edd68fd797edcb247d1bcfc8f9a6dd843af35843 Mon Sep 17 00:00:00 2001
+From: Matt Porter <mporter@ti.com>
+Date: Wed, 17 Oct 2012 17:12:09 -0400
+Subject: [PATCH] Documentation: bindings: add spansion
+
+Signed-off-by: Matt Porter <mporter@ti.com>
+---
+ Documentation/devicetree/bindings/vendor-prefixes.txt |    1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Documentation/devicetree/bindings/vendor-prefixes.txt b/Documentation/devicetree/bindings/vendor-prefixes.txt
+index 54463a7..261b6d5 100644
+--- a/Documentation/devicetree/bindings/vendor-prefixes.txt
++++ b/Documentation/devicetree/bindings/vendor-prefixes.txt
+@@ -47,6 +47,7 @@ sil	Silicon Image
+ simtek
+ sirf	SiRF Technology, Inc.
+ sitronix Sitronix Technology Corp.
++spansion	Spansion, Inc.
+ st	STMicroelectronics
+ stericsson	ST-Ericsson
+ ti	Texas Instruments

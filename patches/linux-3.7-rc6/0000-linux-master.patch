@@ -1,0 +1,503 @@
+diff --git a/arch/alpha/kernel/osf_sys.c b/arch/alpha/kernel/osf_sys.c
+index 1e6956a..14db93e 100644
+--- a/arch/alpha/kernel/osf_sys.c
++++ b/arch/alpha/kernel/osf_sys.c
+@@ -445,7 +445,7 @@ struct procfs_args {
+  * unhappy with OSF UFS. [CHECKME]
+  */
+ static int
+-osf_ufs_mount(char *dirname, struct ufs_args __user *args, int flags)
++osf_ufs_mount(const char *dirname, struct ufs_args __user *args, int flags)
+ {
+ 	int retval;
+ 	struct cdfs_args tmp;
+@@ -465,7 +465,7 @@ osf_ufs_mount(char *dirname, struct ufs_args __user *args, int flags)
+ }
+ 
+ static int
+-osf_cdfs_mount(char *dirname, struct cdfs_args __user *args, int flags)
++osf_cdfs_mount(const char *dirname, struct cdfs_args __user *args, int flags)
+ {
+ 	int retval;
+ 	struct cdfs_args tmp;
+@@ -485,7 +485,7 @@ osf_cdfs_mount(char *dirname, struct cdfs_args __user *args, int flags)
+ }
+ 
+ static int
+-osf_procfs_mount(char *dirname, struct procfs_args __user *args, int flags)
++osf_procfs_mount(const char *dirname, struct procfs_args __user *args, int flags)
+ {
+ 	struct procfs_args tmp;
+ 
+diff --git a/arch/m68k/include/asm/signal.h b/arch/m68k/include/asm/signal.h
+index 67e489d..2df26b5 100644
+--- a/arch/m68k/include/asm/signal.h
++++ b/arch/m68k/include/asm/signal.h
+@@ -41,7 +41,7 @@ struct k_sigaction {
+ static inline void sigaddset(sigset_t *set, int _sig)
+ {
+ 	asm ("bfset %0{%1,#1}"
+-		: "+od" (*set)
++		: "+o" (*set)
+ 		: "id" ((_sig - 1) ^ 31)
+ 		: "cc");
+ }
+@@ -49,7 +49,7 @@ static inline void sigaddset(sigset_t *set, int _sig)
+ static inline void sigdelset(sigset_t *set, int _sig)
+ {
+ 	asm ("bfclr %0{%1,#1}"
+-		: "+od" (*set)
++		: "+o" (*set)
+ 		: "id" ((_sig - 1) ^ 31)
+ 		: "cc");
+ }
+@@ -65,7 +65,7 @@ static inline int __gen_sigismember(sigset_t *set, int _sig)
+ 	int ret;
+ 	asm ("bfextu %1{%2,#1},%0"
+ 		: "=d" (ret)
+-		: "od" (*set), "id" ((_sig-1) ^ 31)
++		: "o" (*set), "id" ((_sig-1) ^ 31)
+ 		: "cc");
+ 	return ret;
+ }
+diff --git a/drivers/ata/ahci_platform.c b/drivers/ata/ahci_platform.c
+index b1ae480..b7078af 100644
+--- a/drivers/ata/ahci_platform.c
++++ b/drivers/ata/ahci_platform.c
+@@ -238,7 +238,7 @@ static int __devexit ahci_remove(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-#ifdef CONFIG_PM
++#ifdef CONFIG_PM_SLEEP
+ static int ahci_suspend(struct device *dev)
+ {
+ 	struct ahci_platform_data *pdata = dev_get_platdata(dev);
+diff --git a/drivers/ata/libata-acpi.c b/drivers/ata/libata-acpi.c
+index fd9ecf7..5b0ba3f 100644
+--- a/drivers/ata/libata-acpi.c
++++ b/drivers/ata/libata-acpi.c
+@@ -1105,10 +1105,15 @@ static int ata_acpi_bind_device(struct ata_port *ap, struct scsi_device *sdev,
+ 	struct acpi_device *acpi_dev;
+ 	struct acpi_device_power_state *states;
+ 
+-	if (ap->flags & ATA_FLAG_ACPI_SATA)
+-		ata_dev = &ap->link.device[sdev->channel];
+-	else
++	if (ap->flags & ATA_FLAG_ACPI_SATA) {
++		if (!sata_pmp_attached(ap))
++			ata_dev = &ap->link.device[sdev->id];
++		else
++			ata_dev = &ap->pmp_link[sdev->channel].device[sdev->id];
++	}
++	else {
+ 		ata_dev = &ap->link.device[sdev->id];
++	}
+ 
+ 	*handle = ata_dev_acpi_handle(ata_dev);
+ 
+diff --git a/drivers/ata/libata-core.c b/drivers/ata/libata-core.c
+index 3cc7096..f46fbd3 100644
+--- a/drivers/ata/libata-core.c
++++ b/drivers/ata/libata-core.c
+@@ -2942,6 +2942,10 @@ const struct ata_timing *ata_timing_find_mode(u8 xfer_mode)
+ 
+ 	if (xfer_mode == t->mode)
+ 		return t;
++
++	WARN_ONCE(true, "%s: unable to find timing for xfer_mode 0x%x\n",
++			__func__, xfer_mode);
++
+ 	return NULL;
+ }
+ 
+diff --git a/drivers/ata/pata_arasan_cf.c b/drivers/ata/pata_arasan_cf.c
+index 26201eb..371fd2c 100644
+--- a/drivers/ata/pata_arasan_cf.c
++++ b/drivers/ata/pata_arasan_cf.c
+@@ -317,6 +317,12 @@ static int cf_init(struct arasan_cf_dev *acdev)
+ 		return ret;
+ 	}
+ 
++	ret = clk_set_rate(acdev->clk, 166000000);
++	if (ret) {
++		dev_warn(acdev->host->dev, "clock set rate failed");
++		return ret;
++	}
++
+ 	spin_lock_irqsave(&acdev->host->lock, flags);
+ 	/* configure CF interface clock */
+ 	writel((pdata->cf_if_clk <= CF_IF_CLK_200M) ? pdata->cf_if_clk :
+@@ -908,7 +914,7 @@ static int __devexit arasan_cf_remove(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-#ifdef CONFIG_PM
++#ifdef CONFIG_PM_SLEEP
+ static int arasan_cf_suspend(struct device *dev)
+ {
+ 	struct ata_host *host = dev_get_drvdata(dev);
+diff --git a/drivers/ata/sata_highbank.c b/drivers/ata/sata_highbank.c
+index 0d7c4c2..400bf1c 100644
+--- a/drivers/ata/sata_highbank.c
++++ b/drivers/ata/sata_highbank.c
+@@ -260,7 +260,7 @@ static const struct of_device_id ahci_of_match[] = {
+ };
+ MODULE_DEVICE_TABLE(of, ahci_of_match);
+ 
+-static int __init ahci_highbank_probe(struct platform_device *pdev)
++static int __devinit ahci_highbank_probe(struct platform_device *pdev)
+ {
+ 	struct device *dev = &pdev->dev;
+ 	struct ahci_host_priv *hpriv;
+@@ -378,7 +378,7 @@ static int __devexit ahci_highbank_remove(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-#ifdef CONFIG_PM
++#ifdef CONFIG_PM_SLEEP
+ static int ahci_highbank_suspend(struct device *dev)
+ {
+ 	struct ata_host *host = dev_get_drvdata(dev);
+diff --git a/drivers/ata/sata_svw.c b/drivers/ata/sata_svw.c
+index 44a4256..08608de 100644
+--- a/drivers/ata/sata_svw.c
++++ b/drivers/ata/sata_svw.c
+@@ -142,6 +142,39 @@ static int k2_sata_scr_write(struct ata_link *link,
+ 	return 0;
+ }
+ 
++static int k2_sata_softreset(struct ata_link *link,
++			     unsigned int *class, unsigned long deadline)
++{
++	u8 dmactl;
++	void __iomem *mmio = link->ap->ioaddr.bmdma_addr;
++
++	dmactl = readb(mmio + ATA_DMA_CMD);
++
++	/* Clear the start bit */
++	if (dmactl & ATA_DMA_START) {
++		dmactl &= ~ATA_DMA_START;
++		writeb(dmactl, mmio + ATA_DMA_CMD);
++	}
++
++	return ata_sff_softreset(link, class, deadline);
++}
++
++static int k2_sata_hardreset(struct ata_link *link,
++			     unsigned int *class, unsigned long deadline)
++{
++	u8 dmactl;
++	void __iomem *mmio = link->ap->ioaddr.bmdma_addr;
++
++	dmactl = readb(mmio + ATA_DMA_CMD);
++
++	/* Clear the start bit */
++	if (dmactl & ATA_DMA_START) {
++		dmactl &= ~ATA_DMA_START;
++		writeb(dmactl, mmio + ATA_DMA_CMD);
++	}
++
++	return sata_sff_hardreset(link, class, deadline);
++}
+ 
+ static void k2_sata_tf_load(struct ata_port *ap, const struct ata_taskfile *tf)
+ {
+@@ -346,6 +379,8 @@ static struct scsi_host_template k2_sata_sht = {
+ 
+ static struct ata_port_operations k2_sata_ops = {
+ 	.inherits		= &ata_bmdma_port_ops,
++	.softreset              = k2_sata_softreset,
++	.hardreset              = k2_sata_hardreset,
+ 	.sff_tf_load		= k2_sata_tf_load,
+ 	.sff_tf_read		= k2_sata_tf_read,
+ 	.sff_check_status	= k2_stat_check_status,
+diff --git a/drivers/gpio/Kconfig b/drivers/gpio/Kconfig
+index f11d8e3..47150f5 100644
+--- a/drivers/gpio/Kconfig
++++ b/drivers/gpio/Kconfig
+@@ -466,7 +466,7 @@ config GPIO_ADP5588_IRQ
+ 
+ config GPIO_ADNP
+ 	tristate "Avionic Design N-bit GPIO expander"
+-	depends on I2C && OF
++	depends on I2C && OF_GPIO
+ 	help
+ 	  This option enables support for N GPIOs found on Avionic Design
+ 	  I2C GPIO expanders. The register space will be extended by powers
+diff --git a/drivers/gpio/gpio-mcp23s08.c b/drivers/gpio/gpio-mcp23s08.c
+index 0f42518..ce1c847 100644
+--- a/drivers/gpio/gpio-mcp23s08.c
++++ b/drivers/gpio/gpio-mcp23s08.c
+@@ -77,7 +77,7 @@ struct mcp23s08_driver_data {
+ 
+ /*----------------------------------------------------------------------*/
+ 
+-#ifdef CONFIG_I2C
++#if IS_ENABLED(CONFIG_I2C)
+ 
+ static int mcp23008_read(struct mcp23s08 *mcp, unsigned reg)
+ {
+@@ -399,7 +399,7 @@ static int mcp23s08_probe_one(struct mcp23s08 *mcp, struct device *dev,
+ 		break;
+ #endif /* CONFIG_SPI_MASTER */
+ 
+-#ifdef CONFIG_I2C
++#if IS_ENABLED(CONFIG_I2C)
+ 	case MCP_TYPE_008:
+ 		mcp->ops = &mcp23008_ops;
+ 		mcp->chip.ngpio = 8;
+@@ -473,7 +473,7 @@ fail:
+ 
+ /*----------------------------------------------------------------------*/
+ 
+-#ifdef CONFIG_I2C
++#if IS_ENABLED(CONFIG_I2C)
+ 
+ static int __devinit mcp230xx_probe(struct i2c_client *client,
+ 				    const struct i2c_device_id *id)
+diff --git a/drivers/gpio/gpio-mvebu.c b/drivers/gpio/gpio-mvebu.c
+index cf7afb9..be65c04 100644
+--- a/drivers/gpio/gpio-mvebu.c
++++ b/drivers/gpio/gpio-mvebu.c
+@@ -92,6 +92,11 @@ static inline void __iomem *mvebu_gpioreg_out(struct mvebu_gpio_chip *mvchip)
+ 	return mvchip->membase + GPIO_OUT_OFF;
+ }
+ 
++static inline void __iomem *mvebu_gpioreg_blink(struct mvebu_gpio_chip *mvchip)
++{
++	return mvchip->membase + GPIO_BLINK_EN_OFF;
++}
++
+ static inline void __iomem *mvebu_gpioreg_io_conf(struct mvebu_gpio_chip *mvchip)
+ {
+ 	return mvchip->membase + GPIO_IO_CONF_OFF;
+@@ -206,6 +211,23 @@ static int mvebu_gpio_get(struct gpio_chip *chip, unsigned pin)
+ 	return (u >> pin) & 1;
+ }
+ 
++static void mvebu_gpio_blink(struct gpio_chip *chip, unsigned pin, int value)
++{
++	struct mvebu_gpio_chip *mvchip =
++		container_of(chip, struct mvebu_gpio_chip, chip);
++	unsigned long flags;
++	u32 u;
++
++	spin_lock_irqsave(&mvchip->lock, flags);
++	u = readl_relaxed(mvebu_gpioreg_blink(mvchip));
++	if (value)
++		u |= 1 << pin;
++	else
++		u &= ~(1 << pin);
++	writel_relaxed(u, mvebu_gpioreg_blink(mvchip));
++	spin_unlock_irqrestore(&mvchip->lock, flags);
++}
++
+ static int mvebu_gpio_direction_input(struct gpio_chip *chip, unsigned pin)
+ {
+ 	struct mvebu_gpio_chip *mvchip =
+@@ -244,6 +266,7 @@ static int mvebu_gpio_direction_output(struct gpio_chip *chip, unsigned pin,
+ 	if (ret)
+ 		return ret;
+ 
++	mvebu_gpio_blink(chip, pin, 0);
+ 	mvebu_gpio_set(chip, pin, value);
+ 
+ 	spin_lock_irqsave(&mvchip->lock, flags);
+diff --git a/fs/file.c b/fs/file.c
+index 708d997..7cb71b9 100644
+--- a/fs/file.c
++++ b/fs/file.c
+@@ -685,7 +685,6 @@ void do_close_on_exec(struct files_struct *files)
+ 	struct fdtable *fdt;
+ 
+ 	/* exec unshares first */
+-	BUG_ON(atomic_read(&files->count) != 1);
+ 	spin_lock(&files->file_lock);
+ 	for (i = 0; ; i++) {
+ 		unsigned long set;
+diff --git a/fs/notify/fanotify/fanotify_user.c b/fs/notify/fanotify/fanotify_user.c
+index 721d692..6fcaeb8 100644
+--- a/fs/notify/fanotify/fanotify_user.c
++++ b/fs/notify/fanotify/fanotify_user.c
+@@ -258,7 +258,8 @@ static ssize_t copy_event_to_user(struct fsnotify_group *group,
+ 	if (ret)
+ 		goto out_close_fd;
+ 
+-	fd_install(fd, f);
++	if (fd != FAN_NOFD)
++		fd_install(fd, f);
+ 	return fanotify_event_metadata.event_len;
+ 
+ out_close_fd:
+diff --git a/fs/xfs/xfs_aops.c b/fs/xfs/xfs_aops.c
+index e562dd4..e57e2da 100644
+--- a/fs/xfs/xfs_aops.c
++++ b/fs/xfs/xfs_aops.c
+@@ -481,11 +481,17 @@ static inline int bio_add_buffer(struct bio *bio, struct buffer_head *bh)
+  *
+  * The fix is two passes across the ioend list - one to start writeback on the
+  * buffer_heads, and then submit them for I/O on the second pass.
++ *
++ * If @fail is non-zero, it means that we have a situation where some part of
++ * the submission process has failed after we have marked paged for writeback
++ * and unlocked them. In this situation, we need to fail the ioend chain rather
++ * than submit it to IO. This typically only happens on a filesystem shutdown.
+  */
+ STATIC void
+ xfs_submit_ioend(
+ 	struct writeback_control *wbc,
+-	xfs_ioend_t		*ioend)
++	xfs_ioend_t		*ioend,
++	int			fail)
+ {
+ 	xfs_ioend_t		*head = ioend;
+ 	xfs_ioend_t		*next;
+@@ -506,6 +512,18 @@ xfs_submit_ioend(
+ 		next = ioend->io_list;
+ 		bio = NULL;
+ 
++		/*
++		 * If we are failing the IO now, just mark the ioend with an
++		 * error and finish it. This will run IO completion immediately
++		 * as there is only one reference to the ioend at this point in
++		 * time.
++		 */
++		if (fail) {
++			ioend->io_error = -fail;
++			xfs_finish_ioend(ioend);
++			continue;
++		}
++
+ 		for (bh = ioend->io_buffer_head; bh; bh = bh->b_private) {
+ 
+ 			if (!bio) {
+@@ -1060,7 +1078,18 @@ xfs_vm_writepage(
+ 
+ 	xfs_start_page_writeback(page, 1, count);
+ 
+-	if (ioend && imap_valid) {
++	/* if there is no IO to be submitted for this page, we are done */
++	if (!ioend)
++		return 0;
++
++	ASSERT(iohead);
++
++	/*
++	 * Any errors from this point onwards need tobe reported through the IO
++	 * completion path as we have marked the initial page as under writeback
++	 * and unlocked it.
++	 */
++	if (imap_valid) {
+ 		xfs_off_t		end_index;
+ 
+ 		end_index = imap.br_startoff + imap.br_blockcount;
+@@ -1079,20 +1108,15 @@ xfs_vm_writepage(
+ 				  wbc, end_index);
+ 	}
+ 
+-	if (iohead) {
+-		/*
+-		 * Reserve log space if we might write beyond the on-disk
+-		 * inode size.
+-		 */
+-		if (ioend->io_type != XFS_IO_UNWRITTEN &&
+-		    xfs_ioend_is_append(ioend)) {
+-			err = xfs_setfilesize_trans_alloc(ioend);
+-			if (err)
+-				goto error;
+-		}
+ 
+-		xfs_submit_ioend(wbc, iohead);
+-	}
++	/*
++	 * Reserve log space if we might write beyond the on-disk inode size.
++	 */
++	err = 0;
++	if (ioend->io_type != XFS_IO_UNWRITTEN && xfs_ioend_is_append(ioend))
++		err = xfs_setfilesize_trans_alloc(ioend);
++
++	xfs_submit_ioend(wbc, iohead, err);
+ 
+ 	return 0;
+ 
+diff --git a/fs/xfs/xfs_attr_leaf.c b/fs/xfs/xfs_attr_leaf.c
+index d330111..70eec18 100644
+--- a/fs/xfs/xfs_attr_leaf.c
++++ b/fs/xfs/xfs_attr_leaf.c
+@@ -1291,6 +1291,7 @@ xfs_attr_leaf_rebalance(xfs_da_state_t *state, xfs_da_state_blk_t *blk1,
+ 	leaf2 = blk2->bp->b_addr;
+ 	ASSERT(leaf1->hdr.info.magic == cpu_to_be16(XFS_ATTR_LEAF_MAGIC));
+ 	ASSERT(leaf2->hdr.info.magic == cpu_to_be16(XFS_ATTR_LEAF_MAGIC));
++	ASSERT(leaf2->hdr.count == 0);
+ 	args = state->args;
+ 
+ 	trace_xfs_attr_leaf_rebalance(args);
+@@ -1361,6 +1362,7 @@ xfs_attr_leaf_rebalance(xfs_da_state_t *state, xfs_da_state_blk_t *blk1,
+ 		 * I assert that since all callers pass in an empty
+ 		 * second buffer, this code should never execute.
+ 		 */
++		ASSERT(0);
+ 
+ 		/*
+ 		 * Figure the total bytes to be added to the destination leaf.
+@@ -1422,10 +1424,24 @@ xfs_attr_leaf_rebalance(xfs_da_state_t *state, xfs_da_state_blk_t *blk1,
+ 			args->index2 = 0;
+ 			args->blkno2 = blk2->blkno;
+ 		} else {
++			/*
++			 * On a double leaf split, the original attr location
++			 * is already stored in blkno2/index2, so don't
++			 * overwrite it overwise we corrupt the tree.
++			 */
+ 			blk2->index = blk1->index
+ 				    - be16_to_cpu(leaf1->hdr.count);
+-			args->index = args->index2 = blk2->index;
+-			args->blkno = args->blkno2 = blk2->blkno;
++			args->index = blk2->index;
++			args->blkno = blk2->blkno;
++			if (!state->extravalid) {
++				/*
++				 * set the new attr location to match the old
++				 * one and let the higher level split code
++				 * decide where in the leaf to place it.
++				 */
++				args->index2 = blk2->index;
++				args->blkno2 = blk2->blkno;
++			}
+ 		}
+ 	} else {
+ 		ASSERT(state->inleaf == 1);
+diff --git a/fs/xfs/xfs_buf.c b/fs/xfs/xfs_buf.c
+index 933b793..4b0b8dd 100644
+--- a/fs/xfs/xfs_buf.c
++++ b/fs/xfs/xfs_buf.c
+@@ -1197,9 +1197,14 @@ xfs_buf_bio_end_io(
+ {
+ 	xfs_buf_t		*bp = (xfs_buf_t *)bio->bi_private;
+ 
+-	xfs_buf_ioerror(bp, -error);
++	/*
++	 * don't overwrite existing errors - otherwise we can lose errors on
++	 * buffers that require multiple bios to complete.
++	 */
++	if (!bp->b_error)
++		xfs_buf_ioerror(bp, -error);
+ 
+-	if (!error && xfs_buf_is_vmapped(bp) && (bp->b_flags & XBF_READ))
++	if (!bp->b_error && xfs_buf_is_vmapped(bp) && (bp->b_flags & XBF_READ))
+ 		invalidate_kernel_vmap_range(bp->b_addr, xfs_buf_vmap_len(bp));
+ 
+ 	_xfs_buf_ioend(bp, 1);
+@@ -1279,6 +1284,11 @@ next_chunk:
+ 		if (size)
+ 			goto next_chunk;
+ 	} else {
++		/*
++		 * This is guaranteed not to be the last io reference count
++		 * because the caller (xfs_buf_iorequest) holds a count itself.
++		 */
++		atomic_dec(&bp->b_io_remaining);
+ 		xfs_buf_ioerror(bp, EIO);
+ 		bio_put(bio);
+ 	}
