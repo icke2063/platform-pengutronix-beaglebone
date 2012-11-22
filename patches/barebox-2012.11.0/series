@@ -1,0 +1,5 @@
+0001-ARM-OMAP-AM33XX-create-new-ARCH-for-AM33xx.patch
+0002-pcm051-Add-inital-support.patch
+0003-WIP-beaglebone-add-first-stage-supprort-for-AM335x-a.patch
+0004-Enable-Bone-i2c-mux.patch
+0005-update-env.patch

@@ -1,0 +1,2302 @@
+From 6f01704f7ceae3015fe7a5b3332879a0975233a4 Mon Sep 17 00:00:00 2001
+From: Jan Luebbe <jlu@pengutronix.de>
+Date: Mon, 24 Sep 2012 17:12:54 +0200
+Subject: [PATCH] WIP beaglebone: add first-stage supprort for AM335x and
+ board
+
+Signed-off-by: Jan Luebbe <jlu@pengutronix.de>
+---
+ arch/arm/Makefile                                  |    1 +
+ arch/arm/boards/beaglebone/Makefile                |    1 +
+ arch/arm/boards/beaglebone/board.c                 |  447 ++++++++++++++++++
+ arch/arm/boards/beaglebone/config.h                |   21 +
+ arch/arm/boards/beaglebone/env/boot/sd             |   16 +
+ arch/arm/boards/beaglebone/env/init/bootargs-base  |    8 +
+ arch/arm/boards/beaglebone/env/init/general        |   18 +
+ arch/arm/boards/beaglebone/mlo-env/bin/boot        |  143 ++++++
+ arch/arm/boards/beaglebone/mlo-env/config          |   51 ++
+ arch/arm/configs/am335x_beaglebone_defconfig       |   54 +++
+ .../configs/am335x_beaglebone_mlo_large_defconfig  |   48 ++
+ .../configs/am335x_beaglebone_mlo_small_defconfig  |   30 ++
+ arch/arm/mach-omap/Kconfig                         |   11 +-
+ arch/arm/mach-omap/Makefile                        |    2 +-
+ arch/arm/mach-omap/am33xx_clock.c                  |  289 ++++++++++++
+ arch/arm/mach-omap/am33xx_generic.c                |   64 +++
+ arch/arm/mach-omap/am33xx_mux.c                    |  497 ++++++++++++++++++++
+ arch/arm/mach-omap/include/mach/am33xx-clock.h     |  172 +++++++
+ arch/arm/mach-omap/include/mach/am33xx-mux.h       |   19 +
+ arch/arm/mach-omap/include/mach/am33xx-silicon.h   |  158 ++++++-
+ arch/arm/mach-omap/s32k_clksource.c                |    5 +-
+ arch/arm/mach-omap/xload.c                         |    5 +-
+ 22 files changed, 2055 insertions(+), 5 deletions(-)
+ create mode 100644 arch/arm/boards/beaglebone/Makefile
+ create mode 100644 arch/arm/boards/beaglebone/board.c
+ create mode 100644 arch/arm/boards/beaglebone/config.h
+ create mode 100644 arch/arm/boards/beaglebone/env/boot/sd
+ create mode 100644 arch/arm/boards/beaglebone/env/init/bootargs-base
+ create mode 100644 arch/arm/boards/beaglebone/env/init/general
+ create mode 100644 arch/arm/boards/beaglebone/mlo-env/bin/boot
+ create mode 100644 arch/arm/boards/beaglebone/mlo-env/config
+ create mode 100644 arch/arm/configs/am335x_beaglebone_defconfig
+ create mode 100644 arch/arm/configs/am335x_beaglebone_mlo_large_defconfig
+ create mode 100644 arch/arm/configs/am335x_beaglebone_mlo_small_defconfig
+ create mode 100644 arch/arm/mach-omap/am33xx_clock.c
+ create mode 100644 arch/arm/mach-omap/am33xx_mux.c
+ create mode 100644 arch/arm/mach-omap/include/mach/am33xx-mux.h
+
+diff --git a/arch/arm/Makefile b/arch/arm/Makefile
+index b9c459f..0329621 100644
+--- a/arch/arm/Makefile
++++ b/arch/arm/Makefile
+@@ -99,6 +99,7 @@ board-$(CONFIG_MACH_NOMADIK_8815NHK)		:= nhk8815
+ board-$(CONFIG_MACH_NXDB500)			:= netx
+ board-$(CONFIG_MACH_OMAP343xSDP)		:= omap343xdsp
+ board-$(CONFIG_MACH_BEAGLE)			:= beagle
++board-$(CONFIG_MACH_BEAGLEBONE)			:= beaglebone
+ board-$(CONFIG_MACH_OMAP3EVM)			:= omap3evm
+ board-$(CONFIG_MACH_PANDA)			:= panda
+ board-$(CONFIG_MACH_PCM049)			:= pcm049
+diff --git a/arch/arm/boards/beaglebone/Makefile b/arch/arm/boards/beaglebone/Makefile
+new file mode 100644
+index 0000000..dcfc293
+--- /dev/null
++++ b/arch/arm/boards/beaglebone/Makefile
+@@ -0,0 +1 @@
++obj-y += board.o
+diff --git a/arch/arm/boards/beaglebone/board.c b/arch/arm/boards/beaglebone/board.c
+new file mode 100644
+index 0000000..8180e28
+--- /dev/null
++++ b/arch/arm/boards/beaglebone/board.c
+@@ -0,0 +1,447 @@
++/*
++ * (C) Copyright 2008
++ * Texas Instruments, <www.ti.com>
++ * Raghavendra KH <r-khandenahally@ti.com>
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License as
++ * published by the Free Software Foundation; either version 2 of
++ * the License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 59 Temple Place, Suite 330, Boston,
++ * MA 02111-1307 USA
++ */
++
++/**
++ * @file
++ * @brief Beagle Specific Board Initialization routines
++ */
++
++/**
++ * @page ti_beagle Texas Instruments Beagle Board
++ *
++ * FileName: arch/arm/boards/omap/board-beagle.c
++ *
++ * Beagle Board from Texas Instruments as described here:
++ * http://www.beagleboard.org
++ *
++ * This board is based on OMAP3530.
++ * More on OMAP3530 (including documentation can be found here):
++ * http://focus.ti.com/docs/prod/folders/print/omap3530.html
++ *
++ * This file provides initialization in two stages:
++ * @li boot time initialization - do basics required to get SDRAM working.
++ * This is run from SRAM - so no case constructs and global vars can be used.
++ * @li run time initialization - this is for the rest of the initializations
++ * such as flash, uart etc.
++ *
++ * Boot time initialization includes:
++ * @li SDRAM initialization.
++ * @li Pin Muxing relevant for Beagle.
++ *
++ * Run time initialization includes
++ * @li serial @ref serial_ns16550.c driver device definition
++ *
++ * Originally from arch/arm/boards/omap/board-sdp343x.c
++ */
++
++#include <common.h>
++#include <console.h>
++#include <init.h>
++#include <driver.h>
++#include <fs.h>
++#include <linux/stat.h>
++#include <environment.h>
++#include <sizes.h>
++#include <io.h>
++#include <ns16550.h>
++#include <asm/armlinux.h>
++#include <generated/mach-types.h>
++#include <mach/silicon.h>
++#include <mach/clocks.h>
++#include <mach/sdrc.h>
++#include <mach/sys_info.h>
++#include <mach/syslib.h>
++#include <mach/control.h>
++#include <mach/gpmc.h>
++#include <mach/ehci.h>
++#include <i2c/i2c.h>
++#include <linux/err.h>
++#include <usb/ehci.h>
++#include <mach/xload.h>
++#include <mach/am33xx-mux.h>
++
++/* UART Defines */
++#define UART_SYSCFG_OFFSET  (0x54)
++#define UART_SYSSTS_OFFSET  (0x58)
++
++#define UART_RESET      (0x1 << 1)
++#define UART_CLK_RUNNING_MASK   0x1
++#define UART_SMART_IDLE_EN  (0x1 << 0x3)
++
++/* AM335X EMIF Register values */
++#define EMIF_SDMGT		0x80000000
++#define EMIF_SDRAM		0x00004650
++#define EMIF_PHYCFG		0x2
++#define DDR_PHY_RESET		(0x1 << 10)
++#define DDR_FUNCTIONAL_MODE_EN	0x1
++#define DDR_PHY_READY		(0x1 << 2)
++#define	VTP_CTRL_READY		(0x1 << 5)
++#define VTP_CTRL_ENABLE		(0x1 << 6)
++#define VTP_CTRL_LOCK_EN	(0x1 << 4)
++#define VTP_CTRL_START_EN	(0x1)
++#define DDR2_RATIO		0x80	/* for mDDR */
++#define CMD_FORCE		0x00	/* common #def */
++#define CMD_DELAY		0x00
++
++#define EMIF_READ_LATENCY	0x05
++#define EMIF_TIM1		0x0666B3D6
++#define EMIF_TIM2		0x143731DA
++#define	EMIF_TIM3		0x00000347
++#define EMIF_SDCFG		0x43805332
++#define EMIF_SDREF		0x0000081a
++#define DDR2_DLL_LOCK_DIFF	0x0
++#define DDR2_RD_DQS		0x12
++#define DDR2_PHY_FIFO_WE	0x80
++
++#define	DDR2_INVERT_CLKOUT	0x00
++#define	DDR2_WR_DQS		0x00
++#define	DDR2_PHY_WRLVL		0x00
++#define	DDR2_PHY_GATELVL	0x00
++#define	DDR2_PHY_WR_DATA	0x40
++#define	PHY_RANK0_DELAY		0x01
++#define PHY_DLL_LOCK_DIFF	0x0
++#define DDR_IOCTRL_VALUE	0x18B
++
++static void Data_Macro_Config(int dataMacroNum)
++{
++	u32 BaseAddrOffset = 0x00;;
++
++	if (dataMacroNum == 1)
++		BaseAddrOffset = 0xA4;
++
++	__raw_writel(((DDR2_RD_DQS<<30)|(DDR2_RD_DQS<<20)
++		|(DDR2_RD_DQS<<10)|(DDR2_RD_DQS<<0)),
++		(DATA0_RD_DQS_SLAVE_RATIO_0 + BaseAddrOffset));
++	__raw_writel(DDR2_RD_DQS>>2,
++		(DATA0_RD_DQS_SLAVE_RATIO_1 + BaseAddrOffset));
++	__raw_writel(((DDR2_WR_DQS<<30)|(DDR2_WR_DQS<<20)
++		|(DDR2_WR_DQS<<10)|(DDR2_WR_DQS<<0)),
++		(DATA0_WR_DQS_SLAVE_RATIO_0 + BaseAddrOffset));
++	__raw_writel(DDR2_WR_DQS>>2,
++		(DATA0_WR_DQS_SLAVE_RATIO_1 + BaseAddrOffset));
++	__raw_writel(((DDR2_PHY_WRLVL<<30)|(DDR2_PHY_WRLVL<<20)
++		|(DDR2_PHY_WRLVL<<10)|(DDR2_PHY_WRLVL<<0)),
++		(DATA0_WRLVL_INIT_RATIO_0 + BaseAddrOffset));
++	__raw_writel(DDR2_PHY_WRLVL>>2,
++		(DATA0_WRLVL_INIT_RATIO_1 + BaseAddrOffset));
++	__raw_writel(((DDR2_PHY_GATELVL<<30)|(DDR2_PHY_GATELVL<<20)
++		|(DDR2_PHY_GATELVL<<10)|(DDR2_PHY_GATELVL<<0)),
++		(DATA0_GATELVL_INIT_RATIO_0 + BaseAddrOffset));
++	__raw_writel(DDR2_PHY_GATELVL>>2,
++		(DATA0_GATELVL_INIT_RATIO_1 + BaseAddrOffset));
++	__raw_writel(((DDR2_PHY_FIFO_WE<<30)|(DDR2_PHY_FIFO_WE<<20)
++		|(DDR2_PHY_FIFO_WE<<10)|(DDR2_PHY_FIFO_WE<<0)),
++		(DATA0_FIFO_WE_SLAVE_RATIO_0 + BaseAddrOffset));
++	__raw_writel(DDR2_PHY_FIFO_WE>>2,
++		(DATA0_FIFO_WE_SLAVE_RATIO_1 + BaseAddrOffset));
++	__raw_writel(((DDR2_PHY_WR_DATA<<30)|(DDR2_PHY_WR_DATA<<20)
++		|(DDR2_PHY_WR_DATA<<10)|(DDR2_PHY_WR_DATA<<0)),
++		(DATA0_WR_DATA_SLAVE_RATIO_0 + BaseAddrOffset));
++	__raw_writel(DDR2_PHY_WR_DATA>>2,
++		(DATA0_WR_DATA_SLAVE_RATIO_1 + BaseAddrOffset));
++	__raw_writel(PHY_DLL_LOCK_DIFF,
++		(DATA0_DLL_LOCK_DIFF_0 + BaseAddrOffset));
++}
++
++static void Cmd_Macro_Config(void)
++{
++	__raw_writel(DDR2_RATIO, CMD0_CTRL_SLAVE_RATIO_0);
++	__raw_writel(CMD_FORCE, CMD0_CTRL_SLAVE_FORCE_0);
++	__raw_writel(CMD_DELAY, CMD0_CTRL_SLAVE_DELAY_0);
++	__raw_writel(DDR2_DLL_LOCK_DIFF, CMD0_DLL_LOCK_DIFF_0);
++	__raw_writel(DDR2_INVERT_CLKOUT, CMD0_INVERT_CLKOUT_0);
++
++	__raw_writel(DDR2_RATIO, CMD1_CTRL_SLAVE_RATIO_0);
++	__raw_writel(CMD_FORCE, CMD1_CTRL_SLAVE_FORCE_0);
++	__raw_writel(CMD_DELAY, CMD1_CTRL_SLAVE_DELAY_0);
++	__raw_writel(DDR2_DLL_LOCK_DIFF, CMD1_DLL_LOCK_DIFF_0);
++	__raw_writel(DDR2_INVERT_CLKOUT, CMD1_INVERT_CLKOUT_0);
++
++	__raw_writel(DDR2_RATIO, CMD2_CTRL_SLAVE_RATIO_0);
++	__raw_writel(CMD_FORCE, CMD2_CTRL_SLAVE_FORCE_0);
++	__raw_writel(CMD_DELAY, CMD2_CTRL_SLAVE_DELAY_0);
++	__raw_writel(DDR2_DLL_LOCK_DIFF, CMD2_DLL_LOCK_DIFF_0);
++	__raw_writel(DDR2_INVERT_CLKOUT, CMD2_INVERT_CLKOUT_0);
++}
++
++static void config_vtp(void)
++{
++	__raw_writel(__raw_readl(VTP0_CTRL_REG) | VTP_CTRL_ENABLE,
++		VTP0_CTRL_REG);
++	__raw_writel(__raw_readl(VTP0_CTRL_REG) & (~VTP_CTRL_START_EN),
++		VTP0_CTRL_REG);
++	__raw_writel(__raw_readl(VTP0_CTRL_REG) | VTP_CTRL_START_EN,
++		VTP0_CTRL_REG);
++
++	/* Poll for READY */
++	while ((__raw_readl(VTP0_CTRL_REG) & VTP_CTRL_READY) != VTP_CTRL_READY);
++}
++
++static void config_emif_ddr2(void)
++{
++	u32 i;
++
++	/*Program EMIF0 CFG Registers*/
++	__raw_writel(EMIF_READ_LATENCY, EMIF4_0_DDR_PHY_CTRL_1);
++	__raw_writel(EMIF_READ_LATENCY, EMIF4_0_DDR_PHY_CTRL_1_SHADOW);
++	__raw_writel(EMIF_READ_LATENCY, EMIF4_0_DDR_PHY_CTRL_2);
++	__raw_writel(EMIF_TIM1, EMIF4_0_SDRAM_TIM_1);
++	__raw_writel(EMIF_TIM1, EMIF4_0_SDRAM_TIM_1_SHADOW);
++	__raw_writel(EMIF_TIM2, EMIF4_0_SDRAM_TIM_2);
++	__raw_writel(EMIF_TIM2, EMIF4_0_SDRAM_TIM_2_SHADOW);
++	__raw_writel(EMIF_TIM3, EMIF4_0_SDRAM_TIM_3);
++	__raw_writel(EMIF_TIM3, EMIF4_0_SDRAM_TIM_3_SHADOW);
++
++	__raw_writel(EMIF_SDCFG, EMIF4_0_SDRAM_CONFIG);
++	__raw_writel(EMIF_SDCFG, EMIF4_0_SDRAM_CONFIG2);
++
++	/* __raw_writel(EMIF_SDMGT, EMIF0_0_SDRAM_MGMT_CTRL);
++	__raw_writel(EMIF_SDMGT, EMIF0_0_SDRAM_MGMT_CTRL_SHD); */
++	__raw_writel(0x00004650, EMIF4_0_SDRAM_REF_CTRL);
++	__raw_writel(0x00004650, EMIF4_0_SDRAM_REF_CTRL_SHADOW);
++
++	for (i = 0; i < 5000; i++) {
++
++	}
++
++	/* __raw_writel(EMIF_SDMGT, EMIF0_0_SDRAM_MGMT_CTRL);
++	__raw_writel(EMIF_SDMGT, EMIF0_0_SDRAM_MGMT_CTRL_SHD); */
++	__raw_writel(EMIF_SDREF, EMIF4_0_SDRAM_REF_CTRL);
++	__raw_writel(EMIF_SDREF, EMIF4_0_SDRAM_REF_CTRL_SHADOW);
++
++	__raw_writel(EMIF_SDCFG, EMIF4_0_SDRAM_CONFIG);
++	__raw_writel(EMIF_SDCFG, EMIF4_0_SDRAM_CONFIG2);
++}
++
++/*  void DDR2_EMIF_Config(void); */
++static void config_am335x_ddr(void)
++{
++	int data_macro_0 = 0;
++	int data_macro_1 = 1;
++
++	enable_ddr_clocks();
++
++	config_vtp();
++
++	Cmd_Macro_Config();
++
++	Data_Macro_Config(data_macro_0);
++	Data_Macro_Config(data_macro_1);
++
++	__raw_writel(PHY_RANK0_DELAY, DATA0_RANK0_DELAYS_0);
++	__raw_writel(PHY_RANK0_DELAY, DATA1_RANK0_DELAYS_0);
++
++	__raw_writel(DDR_IOCTRL_VALUE, DDR_CMD0_IOCTRL);
++	__raw_writel(DDR_IOCTRL_VALUE, DDR_CMD1_IOCTRL);
++	__raw_writel(DDR_IOCTRL_VALUE, DDR_CMD2_IOCTRL);
++	__raw_writel(DDR_IOCTRL_VALUE, DDR_DATA0_IOCTRL);
++	__raw_writel(DDR_IOCTRL_VALUE, DDR_DATA1_IOCTRL);
++
++	__raw_writel(__raw_readl(DDR_IO_CTRL) & 0xefffffff, DDR_IO_CTRL);
++	__raw_writel(__raw_readl(DDR_CKE_CTRL) | 0x00000001, DDR_CKE_CTRL);
++
++	config_emif_ddr2();
++}
++
++/*
++ * early system init of muxing and clocks.
++ */
++void s_init(void)
++{
++	u32 regVal, uart_base;
++
++	/* Setup the PLLs and the clocks for the peripherals */
++	pll_init();
++
++	/* UART softreset */
++	uart_base = AM33XX_UART0_BASE;
++
++	enable_uart0_pin_mux();
++
++	regVal = __raw_readl(uart_base + UART_SYSCFG_OFFSET);
++	regVal |= UART_RESET;
++	__raw_writel(regVal, (uart_base + UART_SYSCFG_OFFSET) );
++	while ((__raw_readl(uart_base + UART_SYSSTS_OFFSET) &
++		UART_CLK_RUNNING_MASK) != UART_CLK_RUNNING_MASK);
++
++	/* Disable smart idle */
++	regVal = __raw_readl((uart_base + UART_SYSCFG_OFFSET));
++	regVal |= UART_SMART_IDLE_EN;
++	__raw_writel(regVal, (uart_base + UART_SYSCFG_OFFSET));
++
++	/* Initialize the Timer */
++	//init_timer();
++
++	//preloader_console_init();
++
++	config_am335x_ddr();
++}
++
++
++/**
++ * @brief The basic entry point for board initialization.
++ *
++ * This is called as part of machine init (after arch init).
++ * This is again called with stack in SRAM, so not too many
++ * constructs possible here.
++ *
++ * @return void
++ */
++static int beagle_board_init(void)
++{
++	int in_sdram = running_in_sdram();
++
++	/* Can be removed as A8 comes up with L2 enabled */
++	//l2_cache_enable();
++
++	/* WDT1 is already running when the bootloader gets control
++	* Disable it to avoid "random" resets
++	*/
++	__raw_writel(0xAAAA, WDT_WSPR);
++	while(__raw_readl(WDT_WWPS) != 0x0);
++	__raw_writel(0x5555, WDT_WSPR);
++	while(__raw_readl(WDT_WWPS) != 0x0);
++
++	//omap3_core_init();
++
++	enable_uart0_pin_mux();
++	/* Dont reconfigure SDRAM while running in SDRAM! */
++	if (!in_sdram)
++		s_init();
++
++	enable_mii1_pin_mux();
++
++	return 0;
++}
++pure_initcall(beagle_board_init);
++
++/******************** Board Run Time *******************/
++
++#ifdef CONFIG_DRIVER_SERIAL_NS16550
++
++static struct NS16550_plat serial_plat = {
++	.clock = 48000000,      /* 48MHz (APLL96/2) */
++	.shift = 2,
++};
++
++/**
++ * @brief UART serial port initialization - remember to enable COM clocks in
++ * arch
++ *
++ * @return result of device registration
++ */
++static int beagle_console_init(void)
++{
++	/* Register the serial port */
++	add_ns16550_device(-1, AM33XX_UART0_BASE, SZ_1K, IORESOURCE_MEM_8BIT,
++			   &serial_plat);
++
++	return 0;
++}
++console_initcall(beagle_console_init);
++#endif /* CONFIG_DRIVER_SERIAL_NS16550 */
++
++#ifdef CONFIG_USB_EHCI_OMAP
++static struct omap_hcd omap_ehci_pdata = {
++	.port_mode[0] = EHCI_HCD_OMAP_MODE_PHY,
++	.port_mode[1] = EHCI_HCD_OMAP_MODE_PHY,
++	.port_mode[2] = EHCI_HCD_OMAP_MODE_UNKNOWN,
++	.phy_reset  = 1,
++	.reset_gpio_port[0]  = -EINVAL,
++	.reset_gpio_port[1]  = 147,
++	.reset_gpio_port[2]  = -EINVAL
++};
++
++static struct ehci_platform_data ehci_pdata = {
++	.flags = 0,
++};
++#endif /* CONFIG_USB_EHCI_OMAP */
++
++static struct i2c_board_info i2c_devices[] = {
++	{
++		I2C_BOARD_INFO("twl4030", 0x48),
++	},
++};
++
++static int beagle_mem_init(void)
++{
++	arm_add_mem_device("ram0", 0x80000000, 256 * 1024 * 1024);
++
++	return 0;
++}
++mem_initcall(beagle_mem_init);
++
++static int beagle_devices_init(void)
++{
++//	i2c_register_board_info(0, i2c_devices, ARRAY_SIZE(i2c_devices));
++//	add_generic_device("i2c-omap", DEVICE_ID_DYNAMIC, NULL, OMAP_I2C1_BASE, SZ_4K,
++//			   IORESOURCE_MEM, NULL);
++
++#ifdef CONFIG_USB_EHCI_OMAP
++//	if (ehci_omap_init(&omap_ehci_pdata) >= 0)
++//		add_usb_ehci_device(DEVICE_ID_DYNAMIC, OMAP_EHCI_BASE,
++//				    OMAP_EHCI_BASE + 0x10, &ehci_pdata);
++#endif /* CONFIG_USB_EHCI_OMAP */
++#ifdef CONFIG_OMAP_GPMC
++	/* WP is made high and WAIT1 active Low */
++	//gpmc_generic_init(0x10);
++#endif
++
++	add_generic_device("omap-hsmmc", DEVICE_ID_DYNAMIC, NULL, 0x48060100, SZ_4K,
++			   IORESOURCE_MEM, NULL);
++
++	armlinux_set_bootparams((void *)0x80000100);
++	//armlinux_set_architecture(MACH_TYPE_OMAP_GENERIC);
++	armlinux_set_architecture(3589);
++
++	return 0;
++}
++device_initcall(beagle_devices_init);
++
++#ifdef CONFIG_DEFAULT_ENVIRONMENT
++static int beaglebone_env_init(void)
++{
++	struct stat s;
++	char *diskdev = "/dev/disk0.0";
++	int ret;
++
++	ret = stat(diskdev, &s);
++	if (ret) {
++		printf("device %s not found. Using default environment\n", diskdev);
++		return 0;
++	}
++
++	mkdir ("/boot", 0666);
++	ret = mount(diskdev, "fat", "/boot");
++	if (ret) {
++		printf("failed to mount %s\n", diskdev);
++		return 0;
++	}
++
++	if (IS_ENABLED(CONFIG_OMAP_BUILD_IFT))
++		default_environment_path = "/dev/defaultenv";
++	else
++		default_environment_path = "/boot/barebox.env";
++
++	return 0;
++}
++late_initcall(beaglebone_env_init);
++#endif
+diff --git a/arch/arm/boards/beaglebone/config.h b/arch/arm/boards/beaglebone/config.h
+new file mode 100644
+index 0000000..b908fc0
+--- /dev/null
++++ b/arch/arm/boards/beaglebone/config.h
+@@ -0,0 +1,21 @@
++/**
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License as
++ * published by the Free Software Foundation; either version 2 of
++ * the License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	 See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 59 Temple Place, Suite 330, Boston,
++ * MA 02111-1307 USA
++ */
++
++#ifndef __CONFIG_H
++#define __CONFIG_H
++
++#endif	/* __CONFIG_H */
+diff --git a/arch/arm/boards/beaglebone/env/boot/sd b/arch/arm/boards/beaglebone/env/boot/sd
+new file mode 100644
+index 0000000..f3f276c
+--- /dev/null
++++ b/arch/arm/boards/beaglebone/env/boot/sd
+@@ -0,0 +1,16 @@
++#!/bin/sh
++
++if [ "$1" = menu ]; then
++	boot-menu-add-entry "$0" "kernel & rootfs on SD card"
++	exit
++fi
++
++global.bootm.image=/boot/uImage
++#global.bootm.oftree=<path to oftree>
++#global.bootm.initrd=<path to initrd>
++
++#bootargs-root-nfs -n "<path on server>" -s <serverip>
++#bootargs-root-jffs2 -m <mtdname>
++#bootargs-root-ubi -r <volume> -m <mtdname>
++
++global.linux.bootargs.root="root=/dev/mmcblk0p2 rootfstype=ext4 rootwait ro"
+diff --git a/arch/arm/boards/beaglebone/env/init/bootargs-base b/arch/arm/boards/beaglebone/env/init/bootargs-base
+new file mode 100644
+index 0000000..333856e
+--- /dev/null
++++ b/arch/arm/boards/beaglebone/env/init/bootargs-base
+@@ -0,0 +1,8 @@
++#!/bin/sh
++
++if [ "$1" = menu ]; then
++	init-menu-add-entry "$0" "Base bootargs"
++	exit
++fi
++
++global.linux.bootargs.base="console=ttyO0,115200n8"
+diff --git a/arch/arm/boards/beaglebone/env/init/general b/arch/arm/boards/beaglebone/env/init/general
+new file mode 100644
+index 0000000..bbd7ee3
+--- /dev/null
++++ b/arch/arm/boards/beaglebone/env/init/general
+@@ -0,0 +1,18 @@
++#!/bin/sh
++
++if [ "$1" = menu ]; then
++	init-menu-add-entry "$0" "general config settings"
++	exit
++fi
++
++# user (used for network filenames)
++global.user=jlu
++
++# timeout in seconds before the default boot entry is started
++global.autoboot_timeout=3
++
++# default boot entry (one of /env/boot/*)
++global.boot.default=sd
++
++# default tftp path
++global.tftp.path=/mnt/tftp-dhcp
+diff --git a/arch/arm/boards/beaglebone/mlo-env/bin/boot b/arch/arm/boards/beaglebone/mlo-env/bin/boot
+new file mode 100644
+index 0000000..c831c35
+--- /dev/null
++++ b/arch/arm/boards/beaglebone/mlo-env/bin/boot
+@@ -0,0 +1,143 @@
++#!/bin/sh
++
++. /env/config
++
++if [ x$kernel_loc = xnet ]; then
++	kernel_loc=tftp
++fi
++
++while getopt "hk:r:i:m:o:" Option
++do
++if [ ${Option} = k ]; then
++	kernel_loc=${OPTARG}
++elif [ ${Option} = r ]; then
++	rootfs_loc=${OPTARG}
++elif [ ${Option} = o ]; then
++	oftree_loc=${OPTARG}
++elif [ ${Option} = i ]; then
++	ip=${OPTARG}
++elif [ ${Option} = m ]; then
++	mode=${OPTARG}
++else
++	. /env/bin/_boot_help
++	exit 0
++fi
++done
++
++if [ x$mode = xnand ]; then
++	rootfs_loc=nand
++	kernel_loc=nand
++elif [ x$mode = xnor ]; then
++	rootfs_loc=nor
++	kernel_loc=nor
++elif [ x$mode = xnfs ]; then
++	rootfs_loc=net
++	kernel_loc=nfs
++elif [ x$mode = xtftp ]; then
++	rootfs_loc=net
++	kernel_loc=tftp
++elif [ x$mode = xdisk ]; then
++	rootfs_loc=disk
++	kernel_loc=disk
++fi
++
++if [ x$ip = xdhcp -o x$ip = "xdhcp-barebox" ]; then
++	if [ x$kernel_loc = xnfs -o x$kernel_loc = xtftp ]; then
++		dhcp
++		if [ x${global.dhcp.rootpath} != x ]; then
++			nfsroot=${global.dhcp.rootpath}
++		fi
++		if [ x${global.dhcp.bootfile} != x ]; then
++			kernelimage=${global.dhcp.bootfile}
++		fi
++		if [ x$global.dhcp.oftree_file} != x ]; then
++			oftreeimage=${global.dhcp_oftree_file}
++		fi
++	fi
++fi
++
++if [ x$ip = xdhcp -o ]; then
++	bootargs="$bootargs ip=dhcp"
++elif [ x$ip = xnone ]; then
++	bootargs="$bootargs ip=none"
++else
++	bootargs="$bootargs ip=$eth0.ipaddr:$eth0.serverip:$eth0.gateway:$eth0.netmask::eth0:"
++fi
++
++
++if [ x$rootfs_loc = xnet ]; then
++	bootargs="$bootargs root=/dev/nfs nfsroot=$nfsroot,v3,tcp noinitrd"
++elif [ x$rootfs_loc = xdisk ]; then
++	bootargs="$bootargs root=/dev/$rootfs_part_linux_dev rootfstype=$rootfs_type noinitrd rootwait"
++elif [ x$rootfs_loc = xinitrd ]; then
++	bootargs="$bootargs root=/dev/ram0 rdinit=/sbin/init"
++else
++	if [ x$rootfs_loc = xnand ]; then
++		rootfs_mtdblock=$rootfs_mtdblock_nand
++	else
++		rootfs_mtdblock=$rootfs_mtdblock_nor
++	fi
++
++	if [ x$rootfs_type = xubifs ]; then
++		if [ -z $ubiroot ]; then
++			ubiroot="root"
++		fi
++		bootargs="$bootargs root=ubi0:$ubiroot ubi.mtd=$rootfs_mtdblock"
++	else
++		bootargs="$bootargs root=/dev/mtdblock$rootfs_mtdblock"
++	fi
++
++	bootargs="$bootargs rootfstype=$rootfs_type noinitrd"
++fi
++
++if [ -n $nor_parts ]; then
++	mtdparts="${mtdparts}physmap-flash.0:${nor_parts}"
++fi
++
++if [ -n $nand_parts ]; then
++	if [ -n ${mtdparts} ]; then
++		mtdparts="${mtdparts};"
++	fi
++	mtdparts="${mtdparts}${nand_device}:${nand_parts}"
++fi
++
++if [ -n $mtdparts ]; then
++	bootargs="${bootargs} mtdparts=${mtdparts}"
++fi
++
++if [ -f $kernel_loc ]; then
++	kdev="$kernel_loc"
++elif [ x$kernel_loc = xnfs -o x$kernel_loc = xtftp ]; then
++	kdev=/image
++	$kernel_loc $kernelimage $kdev || exit 1
++elif [ x$kernel_loc = xnor ]; then
++	kdev="/dev/nor0.kernel"
++elif [ x$kernel_loc = xnand ]; then
++	kdev="/dev/nand0.kernel.bb"
++elif [ x$kernel_loc = xdisk ]; then
++	kdev="/dev/$kernel_part"
++else
++	echo "error: set kernel_loc to one of 'tftp', 'nfs', 'nand', 'nor' or 'disk'"
++	exit 1
++fi
++
++if [ x$oftree_loc = xnfs -o x$oftree_loc = xtftp ]; then
++	odev=/oftree
++	$oftree_loc $oftreeimage $odev || exit 1
++elif [ x$oftree_loc = xnor ]; then
++	odev="/dev/nor0.oftree"
++elif [ x$oftree_loc = xnand ]; then
++	odev="/dev/nand0.oftree.bb"
++elif [ x$oftree_loc = xdisk ]; then
++	odev="/dev/$oftree_part"
++fi
++
++[ x$odev = x ] || bootm_opt="$bootm_opt -o $odev"
++
++echo "booting kernel from $kdev"
++
++#try to execute the file
++# it does not work as example for /dev as the file is not executable
++$kdev $bootm_opt
++# fall back on bootm
++bootm $bootm_opt $kdev
+diff --git a/arch/arm/boards/beaglebone/mlo-env/config b/arch/arm/boards/beaglebone/mlo-env/config
+new file mode 100644
+index 0000000..473777a
+--- /dev/null
++++ b/arch/arm/boards/beaglebone/mlo-env/config
+@@ -0,0 +1,51 @@
++#!/bin/sh
++
++hostname=BeagleBone
++if [ -z "$user" ]; then
++#	user=
++fi
++
++# use 'dhcp' to do dhcp in barebox and in kernel
++# use 'none' if you want to skip kernel ip autoconfiguration
++ip=none
++
++# or set your networking parameters here
++#eth0.ipaddr=a.b.c.d
++#eth0.netmask=a.b.c.d
++#eth0.serverip=a.b.c.d
++#eth0.gateway=a.b.c.d
++
++# can be either 'tftp', 'nfs', 'nand', 'nor' or 'disk'
++kernel_loc=/boot/uImage
++# can be either 'net', 'nand', 'nor', 'disk' or 'initrd'
++rootfs_loc=disk
++# can be either 'tftp', 'nfs', 'nand', 'nor', 'disk' or none
++oftree_loc=none
++
++# for flash based rootfs: 'jffs2' or 'ubifs'
++# in case of disk any regular filesystem like 'ext2', 'ext3', 'reiserfs'
++rootfs_type=ext4
++# where is the rootfs in case of 'rootfs_loc=disk' (linux name)
++rootfs_part_linux_dev=mmcblk0p2
++
++kernelimage=uImage-${global.hostname}
++
++bareboximage=barebox-${global.hostname}.bin
++bareboxenvimage=barebox-${global.hostname}.env
++
++if [ -n $user ]; then
++	bareboximage="$user"-"$bareboximage"
++	bareboxenvimage="$user"-"$bareboxenvimage"
++	kernelimage="$user"-"$kernelimage"
++	rootfsimage="$user"-"$rootfsimage"
++	nfsroot="/home/$user/nfsroot/${global.hostname}"
++else
++	nfsroot="/path/to/nfs/root"
++fi
++
++autoboot_timeout=3
++
++bootargs="console=ttyO0,115200n8"
++
++# set a fancy prompt (if support is compiled in)
++PS1="\e[1;32mbarebox@\e[1;31m\h:\w\e[0m "
+diff --git a/arch/arm/configs/am335x_beaglebone_defconfig b/arch/arm/configs/am335x_beaglebone_defconfig
+new file mode 100644
+index 0000000..2066d9c
+--- /dev/null
++++ b/arch/arm/configs/am335x_beaglebone_defconfig
+@@ -0,0 +1,54 @@
++CONFIG_ARCH_OMAP=y
++CONFIG_ARCH_AM33XX=y
++CONFIG_AEABI=y
++CONFIG_ARM_OPTIMZED_STRING_FUNCTIONS=y
++CONFIG_ARM_UNWIND=y
++CONFIG_MMU=y
++CONFIG_TEXT_BASE=0x81000000
++CONFIG_KALLSYMS=y
++CONFIG_PROMPT="barebox> "
++CONFIG_LONGHELP=y
++CONFIG_HUSH_FANCY_PROMPT=y
++CONFIG_CMDLINE_EDITING=y
++CONFIG_AUTO_COMPLETE=y
++CONFIG_MENU=y
++# CONFIG_TIMESTAMP is not set
++CONFIG_DEFAULT_ENVIRONMENT_GENERIC_NEW=y
++CONFIG_DEFAULT_ENVIRONMENT_PATH="arch/arm/boards/beaglebone/env"
++CONFIG_CMD_EDIT=y
++CONFIG_CMD_SLEEP=y
++CONFIG_CMD_SAVEENV=y
++CONFIG_CMD_EXPORT=y
++CONFIG_CMD_PRINTENV=y
++CONFIG_CMD_READLINE=y
++CONFIG_CMD_MENU=y
++CONFIG_CMD_MENU_MANAGEMENT=y
++CONFIG_CMD_TIME=y
++CONFIG_CMD_ECHO_E=y
++CONFIG_CMD_MEMINFO=y
++CONFIG_CMD_CRC=y
++CONFIG_CMD_CRC_CMP=y
++CONFIG_CMD_BOOTM_SHOW_TYPE=y
++CONFIG_CMD_BOOTM_VERBOSE=y
++CONFIG_CMD_BOOTM_INITRD=y
++CONFIG_CMD_BOOTM_OFTREE=y
++CONFIG_CMD_BOOTM_OFTREE_UIMAGE=y
++CONFIG_CMD_UIMAGE=y
++CONFIG_CMD_RESET=y
++CONFIG_CMD_GO=y
++CONFIG_CMD_OFTREE=y
++CONFIG_CMD_TIMEOUT=y
++CONFIG_CMD_PARTITION=y
++CONFIG_CMD_MAGICVAR=y
++CONFIG_CMD_MAGICVAR_HELP=y
++CONFIG_CMD_GPIO=y
++CONFIG_CMD_UNCOMPRESS=y
++CONFIG_DRIVER_SERIAL_NS16550=y
++CONFIG_DRIVER_SERIAL_NS16550_OMAP_EXTENSIONS=y
++# CONFIG_SPI is not set
++CONFIG_MCI=y
++CONFIG_MCI_STARTUP=y
++CONFIG_MCI_OMAP_HSMMC=y
++CONFIG_FS_FAT=y
++CONFIG_FS_FAT_WRITE=y
++CONFIG_FS_FAT_LFN=y
+diff --git a/arch/arm/configs/am335x_beaglebone_mlo_large_defconfig b/arch/arm/configs/am335x_beaglebone_mlo_large_defconfig
+new file mode 100644
+index 0000000..a2bf6c0
+--- /dev/null
++++ b/arch/arm/configs/am335x_beaglebone_mlo_large_defconfig
+@@ -0,0 +1,48 @@
++CONFIG_ARCH_OMAP=y
++CONFIG_ARCH_AM33XX=y
++CONFIG_OMAP_BUILD_IFT=y
++CONFIG_AEABI=y
++CONFIG_THUMB2_BAREBOX=y
++CONFIG_LOCALVERSION="-mlo-large"
++CONFIG_MMU=y
++CONFIG_TEXT_BASE=0x402F0400
++CONFIG_MEMORY_LAYOUT_FIXED=y
++CONFIG_STACK_BASE=0x4030B800
++CONFIG_STACK_SIZE=0x1600
++CONFIG_MALLOC_BASE=0x8F000000
++CONFIG_MALLOC_SIZE=0x1000000
++CONFIG_PROMPT="barebox mlo> "
++CONFIG_LONGHELP=y
++# CONFIG_ERRNO_MESSAGES is not set
++# CONFIG_TIMESTAMP is not set
++CONFIG_DEFAULT_ENVIRONMENT_GENERIC=y
++CONFIG_DEFAULT_ENVIRONMENT_PATH="arch/arm/boards/beaglebone/mlo-env"
++CONFIG_CMD_EXPORT=y
++# CONFIG_CMD_RM is not set
++# CONFIG_CMD_CAT is not set
++# CONFIG_CMD_RMDIR is not set
++# CONFIG_CMD_CP is not set
++# CONFIG_CMD_PWD is not set
++# CONFIG_CMD_CD is not set
++# CONFIG_CMD_UMOUNT is not set
++# CONFIG_CMD_CLEAR is not set
++CONFIG_CMD_LOADB=y
++CONFIG_CMD_LOADY=y
++CONFIG_CMD_BOOTM_SHOW_TYPE=y
++CONFIG_CMD_BOOTM_VERBOSE=y
++CONFIG_CMD_BOOTM_INITRD=y
++CONFIG_CMD_BOOTM_OFTREE=y
++CONFIG_CMD_BOOTM_OFTREE_UIMAGE=y
++# CONFIG_CMD_BOOTU is not set
++CONFIG_CMD_GO=y
++CONFIG_CMD_TIMEOUT=y
++# CONFIG_CMD_VERSION is not set
++# CONFIG_CMD_HELP is not set
++CONFIG_DRIVER_SERIAL_NS16550=y
++CONFIG_DRIVER_SERIAL_NS16550_OMAP_EXTENSIONS=y
++# CONFIG_SPI is not set
++CONFIG_MCI=y
++CONFIG_MCI_STARTUP=y
++CONFIG_MCI_OMAP_HSMMC=y
++CONFIG_FS_FAT=y
++CONFIG_FS_FAT_LFN=y
+diff --git a/arch/arm/configs/am335x_beaglebone_mlo_small_defconfig b/arch/arm/configs/am335x_beaglebone_mlo_small_defconfig
+new file mode 100644
+index 0000000..4e743b7
+--- /dev/null
++++ b/arch/arm/configs/am335x_beaglebone_mlo_small_defconfig
+@@ -0,0 +1,30 @@
++CONFIG_ARCH_OMAP=y
++CONFIG_ARCH_AM33XX=y
++CONFIG_OMAP_BUILD_IFT=y
++CONFIG_AEABI=y
++CONFIG_THUMB2_BAREBOX=y
++# CONFIG_CMD_ARM_CPUINFO is not set
++CONFIG_ENVIRONMENT_VARIABLES=y
++CONFIG_MMU=y
++CONFIG_TEXT_BASE=0x402F0400
++CONFIG_MEMORY_LAYOUT_FIXED=y
++CONFIG_STACK_BASE=0x4030B800
++CONFIG_STACK_SIZE=0x1600
++CONFIG_MALLOC_BASE=0x8F000000
++CONFIG_MALLOC_SIZE=0x1000000
++CONFIG_PROMPT="MLO>"
++CONFIG_LONGHELP=y
++CONFIG_SHELL_NONE=y
++# CONFIG_ERRNO_MESSAGES is not set
++# CONFIG_TIMESTAMP is not set
++# CONFIG_DEFAULT_ENVIRONMENT is not set
++CONFIG_DRIVER_SERIAL_NS16550=y
++CONFIG_DRIVER_SERIAL_NS16550_OMAP_EXTENSIONS=y
++# CONFIG_SPI is not set
++CONFIG_MCI=y
++CONFIG_MCI_STARTUP=y
++CONFIG_MCI_OMAP_HSMMC=y
++# CONFIG_FS_RAMFS is not set
++# CONFIG_FS_DEVFS is not set
++CONFIG_FS_FAT=y
++CONFIG_FS_FAT_LFN=y
+diff --git a/arch/arm/mach-omap/Kconfig b/arch/arm/mach-omap/Kconfig
+index ecbc417..547bd95 100644
+--- a/arch/arm/mach-omap/Kconfig
++++ b/arch/arm/mach-omap/Kconfig
+@@ -95,7 +95,8 @@ config ARCH_TEXT_BASE
+ 
+ config BOARDINFO
+ 	default "Texas Instrument's SDP343x" if MACH_OMAP343xSDP
+-	default "Texas Instrument's Beagle" if MACH_BEAGLE
++	default "Texas Instrument's Beagle Board" if MACH_BEAGLE
++	default "Texas Instrument's Beagle Bone" if MACH_BEAGLEBONE
+ 	default "Texas Instrument's OMAP3EVM" if MACH_OMAP3EVM
+ 	default "Texas Instrument's Panda" if MACH_PANDA
+ 	default "Phytec phyCORE pcm049" if MACH_PCM049
+@@ -119,6 +120,14 @@ config MACH_BEAGLE
+ 	  help
+ 	  Say Y here if you are using Beagle Board
+ 
++config MACH_BEAGLEBONE
++	bool "Texas Instrument's Beagle Bone"
++	select OMAP_CLOCK_ALL
++	select HAVE_NOSHELL
++	depends on ARCH_AM33XX
++	  help
++	  Say Y here if you are using Beagle Bone
++
+ config MACH_OMAP3EVM
+ 	bool "Texas Instrument's OMAP3 EVM"
+ 	select HAVE_NOSHELL
+diff --git a/arch/arm/mach-omap/Makefile b/arch/arm/mach-omap/Makefile
+index 1e1a421..0f36a37 100644
+--- a/arch/arm/mach-omap/Makefile
++++ b/arch/arm/mach-omap/Makefile
+@@ -23,7 +23,7 @@ obj-$(CONFIG_ARCH_OMAP3) += omap3_core.o omap3_generic.o auxcr.o
+ pbl-$(CONFIG_ARCH_OMAP3) += omap3_core.o omap3_generic.o auxcr.o
+ obj-$(CONFIG_ARCH_OMAP4) += omap4_generic.o omap4_clock.o
+ pbl-$(CONFIG_ARCH_OMAP4) += omap4_generic.o omap4_clock.o
+-obj-$(CONFIG_ARCH_AM33XX) += am33xx_generic.o
++obj-$(CONFIG_ARCH_AM33XX) += am33xx_generic.o am33xx_clock.o am33xx_mux.o
+ obj-$(CONFIG_OMAP3_CLOCK_CONFIG) += omap3_clock.o
+ pbl-$(CONFIG_OMAP3_CLOCK_CONFIG) += omap3_clock.o
+ obj-$(CONFIG_OMAP_GPMC) += gpmc.o devices-gpmc-nand.o
+diff --git a/arch/arm/mach-omap/am33xx_clock.c b/arch/arm/mach-omap/am33xx_clock.c
+new file mode 100644
+index 0000000..843af9c
+--- /dev/null
++++ b/arch/arm/mach-omap/am33xx_clock.c
+@@ -0,0 +1,289 @@
++/*
++ * pll.c
++ *
++ * Copyright (C) 2011 Texas Instruments Incorporated - http://www.ti.com/
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License as
++ * published by the Free Software Foundation version 2.
++ *
++ * This program is distributed "as is" WITHOUT ANY WARRANTY of any
++ * kind, whether express or implied; without even the implied warranty
++ * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++ * GNU General Public License for more details.
++ */
++#include <common.h>
++#include <asm/io.h>
++#include <mach/clocks.h>
++
++#define PRCM_MOD_EN		0x2
++#define	PRCM_FORCE_WAKEUP	0x2
++
++#define PRCM_EMIF_CLK_ACTIVITY	(0x1 << 2)
++#define PRCM_L3_GCLK_ACTIVITY	(0x1 << 4)
++
++#define PLL_BYPASS_MODE	0x4
++#define PLL_LOCK_MODE	0x7
++#define PLL_MULTIPLIER_SHIFT	 8
++
++static void interface_clocks_enable(void)
++{
++	/* Enable all the Interconnect Modules */
++	__raw_writel(PRCM_MOD_EN, CM_PER_L3_CLKCTRL);
++	while (__raw_readl(CM_PER_L3_CLKCTRL) != PRCM_MOD_EN);
++
++	__raw_writel(PRCM_MOD_EN, CM_PER_L4LS_CLKCTRL);
++	while (__raw_readl(CM_PER_L4LS_CLKCTRL) != PRCM_MOD_EN);
++
++	__raw_writel(PRCM_MOD_EN, CM_PER_L4FW_CLKCTRL);
++	while (__raw_readl(CM_PER_L4FW_CLKCTRL) != PRCM_MOD_EN);
++
++	__raw_writel(PRCM_MOD_EN, CM_WKUP_L4WKUP_CLKCTRL);
++	while (__raw_readl(CM_WKUP_L4WKUP_CLKCTRL) != PRCM_MOD_EN);
++
++	__raw_writel(PRCM_MOD_EN, CM_PER_L3_INSTR_CLKCTRL);
++	while (__raw_readl(CM_PER_L3_INSTR_CLKCTRL) != PRCM_MOD_EN);
++
++	__raw_writel(PRCM_MOD_EN, CM_PER_L4HS_CLKCTRL);
++	while (__raw_readl(CM_PER_L4HS_CLKCTRL) != PRCM_MOD_EN);
++
++	__raw_writel(PRCM_MOD_EN, CM_PER_SPI1_CLKCTRL);
++	while (__raw_readl(CM_PER_SPI1_CLKCTRL) != PRCM_MOD_EN);
++
++	/* GPIO0 */
++	__raw_writel(PRCM_MOD_EN, CM_WKUP_GPIO0_CLKCTRL);
++	while (__raw_readl(CM_WKUP_GPIO0_CLKCTRL) != PRCM_MOD_EN);
++}
++
++static void power_domain_transition_enable(void)
++{
++	/*
++	 * Force power domain wake up transition
++	 * Ensure that the corresponding interface clock is active before
++	 * using the peripheral
++	 */
++	__raw_writel(PRCM_FORCE_WAKEUP, CM_PER_L3_CLKSTCTRL);
++
++	__raw_writel(PRCM_FORCE_WAKEUP, CM_PER_L4LS_CLKSTCTRL);
++
++	__raw_writel(PRCM_FORCE_WAKEUP, CM_WKUP_CLKSTCTRL);
++
++	__raw_writel(PRCM_FORCE_WAKEUP, CM_PER_L4FW_CLKSTCTRL);
++
++	__raw_writel(PRCM_FORCE_WAKEUP, CM_PER_L3S_CLKSTCTRL);
++}
++
++/*
++ * Enable the module clock and the power domain for required peripherals
++ */
++static void per_clocks_enable(void)
++{
++	/* Enable the module clock */
++	__raw_writel(PRCM_MOD_EN, CM_PER_TIMER2_CLKCTRL);
++	while (__raw_readl(CM_PER_TIMER2_CLKCTRL) != PRCM_MOD_EN);
++
++	/* Select the Master osc 24 MHZ as Timer2 clock source */
++	__raw_writel(0x1, CLKSEL_TIMER2_CLK);
++
++	/* UART0 */
++	__raw_writel(PRCM_MOD_EN, CM_WKUP_UART0_CLKCTRL);
++	while (__raw_readl(CM_WKUP_UART0_CLKCTRL) != PRCM_MOD_EN);
++
++	/* UART3 */
++	__raw_writel(PRCM_MOD_EN, CM_PER_UART3_CLKCTRL);
++	while (__raw_readl(CM_PER_UART3_CLKCTRL) != PRCM_MOD_EN);
++
++	/* GPMC */
++	__raw_writel(PRCM_MOD_EN, CM_PER_GPMC_CLKCTRL);
++	while (__raw_readl(CM_PER_GPMC_CLKCTRL) != PRCM_MOD_EN);
++
++	/* ELM */
++	__raw_writel(PRCM_MOD_EN, CM_PER_ELM_CLKCTRL);
++	while (__raw_readl(CM_PER_ELM_CLKCTRL) != PRCM_MOD_EN);
++
++	/* i2c0 */
++	__raw_writel(PRCM_MOD_EN, CM_WKUP_I2C0_CLKCTRL);
++	while (__raw_readl(CM_WKUP_I2C0_CLKCTRL) != PRCM_MOD_EN);
++
++	/* i2c1 */
++	__raw_writel(PRCM_MOD_EN, CM_PER_I2C1_CLKCTRL);
++	while (__raw_readl(CM_PER_I2C1_CLKCTRL) != PRCM_MOD_EN);
++
++	/* i2c2 */
++	__raw_writel(PRCM_MOD_EN, CM_PER_I2C2_CLKCTRL);
++	while (__raw_readl(CM_PER_I2C2_CLKCTRL) != PRCM_MOD_EN);
++
++	/* Ethernet */
++	__raw_writel(PRCM_MOD_EN, CM_PER_CPGMAC0_CLKCTRL);
++	__raw_writel(PRCM_MOD_EN, CM_PER_CPSW_CLKSTCTRL);
++	while ((__raw_readl(CM_PER_CPGMAC0_CLKCTRL) & 0x30000) != 0x0);
++
++	/* MMC 0 & 1 */
++	__raw_writel(PRCM_MOD_EN, CM_PER_MMC0_CLKCTRL);
++	while (__raw_readl(CM_PER_MMC0_CLKCTRL) != PRCM_MOD_EN);
++	__raw_writel(PRCM_MOD_EN, CM_PER_MMC1_CLKCTRL);
++	while (__raw_readl(CM_PER_MMC1_CLKCTRL) != PRCM_MOD_EN);
++
++	/* Enable the control module though RBL would have done it*/
++	__raw_writel(PRCM_MOD_EN, CM_WKUP_CONTROL_CLKCTRL);
++	while (__raw_readl(CM_WKUP_CONTROL_CLKCTRL) != PRCM_MOD_EN);
++
++	/* SPI 0 & 1 */
++	__raw_writel(PRCM_MOD_EN, CM_PER_SPI0_CLKCTRL);
++	while (__raw_readl(CM_PER_SPI0_CLKCTRL) != PRCM_MOD_EN);
++
++	__raw_writel(PRCM_MOD_EN, CM_PER_SPI1_CLKCTRL);
++	while (__raw_readl(CM_PER_SPI1_CLKCTRL) != PRCM_MOD_EN);
++}
++
++static void mpu_pll_config(int mpupll_M)
++{
++	u32 clkmode, clksel, div_m2;
++
++	clkmode = __raw_readl(CM_CLKMODE_DPLL_MPU);
++	clksel = __raw_readl(CM_CLKSEL_DPLL_MPU);
++	div_m2 = __raw_readl(CM_DIV_M2_DPLL_MPU);
++
++	/* Set the PLL to bypass Mode */
++	__raw_writel(PLL_BYPASS_MODE, CM_CLKMODE_DPLL_MPU);
++
++	while(__raw_readl(CM_IDLEST_DPLL_MPU) != 0x00000100);
++
++	clksel = clksel & (~0x7ffff);
++	clksel = clksel | ((mpupll_M << 0x8) | MPUPLL_N);
++	__raw_writel(clksel, CM_CLKSEL_DPLL_MPU);
++
++	div_m2 = div_m2 & ~0x1f;
++	div_m2 = div_m2 | MPUPLL_M2;
++	__raw_writel(div_m2, CM_DIV_M2_DPLL_MPU);
++
++	clkmode = clkmode | 0x7;
++	__raw_writel(clkmode, CM_CLKMODE_DPLL_MPU);
++
++	while(__raw_readl(CM_IDLEST_DPLL_MPU) != 0x1);
++}
++
++static void core_pll_config(void)
++{
++	u32 clkmode, clksel, div_m4, div_m5, div_m6;
++
++	clkmode = __raw_readl(CM_CLKMODE_DPLL_CORE);
++	clksel = __raw_readl(CM_CLKSEL_DPLL_CORE);
++	div_m4 = __raw_readl(CM_DIV_M4_DPLL_CORE);
++	div_m5 = __raw_readl(CM_DIV_M5_DPLL_CORE);
++	div_m6 = __raw_readl(CM_DIV_M6_DPLL_CORE);
++
++	/* Set the PLL to bypass Mode */
++	__raw_writel(PLL_BYPASS_MODE, CM_CLKMODE_DPLL_CORE);
++
++	while(__raw_readl(CM_IDLEST_DPLL_CORE) != 0x00000100);
++
++	clksel = clksel & (~0x7ffff);
++	clksel = clksel | ((COREPLL_M << 0x8) | COREPLL_N);
++	__raw_writel(clksel, CM_CLKSEL_DPLL_CORE);
++
++	div_m4 = div_m4 & ~0x1f;
++	div_m4 = div_m4 | COREPLL_M4;
++	__raw_writel(div_m4, CM_DIV_M4_DPLL_CORE);
++
++	div_m5 = div_m5 & ~0x1f;
++	div_m5 = div_m5 | COREPLL_M5;
++	__raw_writel(div_m5, CM_DIV_M5_DPLL_CORE);
++
++	div_m6 = div_m6 & ~0x1f;
++	div_m6 = div_m6 | COREPLL_M6;
++	__raw_writel(div_m6, CM_DIV_M6_DPLL_CORE);
++
++
++	clkmode = clkmode | 0x7;
++	__raw_writel(clkmode, CM_CLKMODE_DPLL_CORE);
++
++	while(__raw_readl(CM_IDLEST_DPLL_CORE) != 0x1);
++}
++
++static void per_pll_config(void)
++{
++	u32 clkmode, clksel, div_m2;
++
++	clkmode = __raw_readl(CM_CLKMODE_DPLL_PER);
++	clksel = __raw_readl(CM_CLKSEL_DPLL_PER);
++	div_m2 = __raw_readl(CM_DIV_M2_DPLL_PER);
++
++	/* Set the PLL to bypass Mode */
++	__raw_writel(PLL_BYPASS_MODE, CM_CLKMODE_DPLL_PER);
++
++	while(__raw_readl(CM_IDLEST_DPLL_PER) != 0x00000100);
++
++	clksel = clksel & (~0x7ffff);
++	clksel = clksel | ((PERPLL_M << 0x8) | PERPLL_N);
++	__raw_writel(clksel, CM_CLKSEL_DPLL_PER);
++
++	div_m2 = div_m2 & ~0x7f;
++	div_m2 = div_m2 | PERPLL_M2;
++	__raw_writel(div_m2, CM_DIV_M2_DPLL_PER);
++
++	clkmode = clkmode | 0x7;
++	__raw_writel(clkmode, CM_CLKMODE_DPLL_PER);
++
++	while(__raw_readl(CM_IDLEST_DPLL_PER) != 0x1);
++}
++
++static void ddr_pll_config(void)
++{
++	u32 clkmode, clksel, div_m2;
++
++	clkmode = __raw_readl(CM_CLKMODE_DPLL_DDR);
++	clksel = __raw_readl(CM_CLKSEL_DPLL_DDR);
++	div_m2 = __raw_readl(CM_DIV_M2_DPLL_DDR);
++
++	/* Set the PLL to bypass Mode */
++	clkmode = (clkmode & 0xfffffff8) | 0x00000004;
++	__raw_writel(clkmode, CM_CLKMODE_DPLL_DDR);
++
++	while ((__raw_readl(CM_IDLEST_DPLL_DDR) & 0x00000100) != 0x00000100);
++
++	clksel = clksel & (~0x7ffff);
++	clksel = clksel | ((DDRPLL_M << 0x8) | DDRPLL_N);
++	__raw_writel(clksel, CM_CLKSEL_DPLL_DDR);
++
++	div_m2 = div_m2 & 0xFFFFFFE0;
++	div_m2 = div_m2 | DDRPLL_M2;
++	__raw_writel(div_m2, CM_DIV_M2_DPLL_DDR);
++
++	clkmode = (clkmode & 0xfffffff8) | 0x7;
++	__raw_writel(clkmode, CM_CLKMODE_DPLL_DDR);
++
++	while ((__raw_readl(CM_IDLEST_DPLL_DDR) & 0x00000001) != 0x1);
++}
++
++void enable_ddr_clocks(void)
++{
++	/* Enable the  EMIF_FW Functional clock */
++	__raw_writel(PRCM_MOD_EN, CM_PER_EMIF_FW_CLKCTRL);
++	/* Enable EMIF0 Clock */
++	__raw_writel(PRCM_MOD_EN, CM_PER_EMIF_CLKCTRL);
++	/* Poll for emif_gclk  & L3_G clock  are active */
++	while ((__raw_readl(CM_PER_L3_CLKSTCTRL) & (PRCM_EMIF_CLK_ACTIVITY |
++		PRCM_L3_GCLK_ACTIVITY)) != (PRCM_EMIF_CLK_ACTIVITY |
++		PRCM_L3_GCLK_ACTIVITY));
++	/* Poll if module is functional */
++	while ((__raw_readl(CM_PER_EMIF_CLKCTRL)) != PRCM_MOD_EN);
++
++}
++
++/*
++ * Configure the PLL/PRCM for necessary peripherals
++ */
++void pll_init()
++{
++	mpu_pll_config(MPUPLL_M_500);
++	core_pll_config();
++	per_pll_config();
++	ddr_pll_config();
++	/* Enable the required interconnect clocks */
++	interface_clocks_enable();
++	/* Enable power domain transition */
++	power_domain_transition_enable();
++	/* Enable the required peripherals */
++	per_clocks_enable();
++}
+diff --git a/arch/arm/mach-omap/am33xx_generic.c b/arch/arm/mach-omap/am33xx_generic.c
+index ba08773..37166e2 100644
+--- a/arch/arm/mach-omap/am33xx_generic.c
++++ b/arch/arm/mach-omap/am33xx_generic.c
+@@ -20,6 +20,7 @@
+ #include <io.h>
+ #include <mach/silicon.h>
+ #include <mach/clocks.h>
++#include <mach/sys_info.h>
+ 
+ void __noreturn reset_cpu(unsigned long addr)
+ {
+@@ -27,3 +28,66 @@ void __noreturn reset_cpu(unsigned long addr)
+ 
+ 	while (1);
+ }
++
++/* TODO consolidate with omap3_generic.c */
++
++/**
++ * @brief Get the upper address of current execution
++ *
++ * we can use this to figure out if we are running in SRAM /
++ * XIP Flash or in SDRAM
++ *
++ * @return base address
++ */
++u32 get_base(void)
++{
++	u32 val;
++	__asm__ __volatile__("mov %0, pc \n":"=r"(val)::"memory");
++	val &= 0xF0000000;
++	val >>= 28;
++	return val;
++}
++
++/**
++ * @brief Are we running in Flash XIP?
++ *
++ * If the base is in GPMC address space, we probably are!
++ *
++ * @return 1 if we are running in XIP mode, else return 0
++ */
++u32 running_in_flash(void)
++{
++	if (get_base() < 4)
++		return 1;	/* in flash */
++	return 0;		/* running in SRAM or SDRAM */
++}
++
++/**
++ * @brief Are we running in OMAP internal SRAM?
++ *
++ * If in SRAM address, then yes!
++ *
++ * @return  1 if we are running in SRAM, else return 0
++ */
++u32 running_in_sram(void)
++{
++	if (get_base() == 4)
++		return 1;	/* in SRAM */
++	return 0;		/* running in FLASH or SDRAM */
++}
++
++/**
++ * @brief Are we running in SDRAM?
++ *
++ * if we are not in GPMC nor in SRAM address space,
++ * we are in SDRAM execution area
++ *
++ * @return 1 if we are running from SDRAM, else return 0
++ */
++u32 running_in_sdram(void)
++{
++	if (get_base() > 4)
++		return 1;	/* in sdram */
++	return 0;		/* running in SRAM or FLASH */
++}
++
+diff --git a/arch/arm/mach-omap/am33xx_mux.c b/arch/arm/mach-omap/am33xx_mux.c
+new file mode 100644
+index 0000000..db841aa
+--- /dev/null
++++ b/arch/arm/mach-omap/am33xx_mux.c
+@@ -0,0 +1,497 @@
++/*
++ * mux.c
++ *
++ * Copyright (C) 2011 Texas Instruments Incorporated - http://www.ti.com/
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License as
++ * published by the Free Software Foundation version 2.
++ *
++ * This program is distributed "as is" WITHOUT ANY WARRANTY of any
++ * kind, whether express or implied; without even the implied warranty
++ * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++ * GNU General Public License for more details.
++ */
++#include <common.h>
++#include <config.h>
++#include <asm/io.h>
++#include <mach/silicon.h>
++
++#define MUX_CFG(value, offset)	\
++	__raw_writel(value, (OMAP_CTRL_BASE + offset));
++
++/* PAD Control Fields */
++#define SLEWCTRL	(0x1 << 6)
++#define	RXACTIVE	(0x1 << 5)
++#define	PULLUP_EN	(0x1 << 4) /* Pull UP Selection */
++#define PULLUDEN	(0x0 << 3) /* Pull up enabled */
++#define PULLUDDIS	(0x1 << 3) /* Pull up disabled */
++#define MODE(val)	val
++
++/*
++ * PAD CONTROL OFFSETS
++ * Field names corresponds to the pad signal name
++ */
++/* TODO replace with defines */
++struct pad_signals {
++	int gpmc_ad0;
++	int gpmc_ad1;
++	int gpmc_ad2;
++	int gpmc_ad3;
++	int gpmc_ad4;
++	int gpmc_ad5;
++	int gpmc_ad6;
++	int gpmc_ad7;
++	int gpmc_ad8;
++	int gpmc_ad9;
++	int gpmc_ad10;
++	int gpmc_ad11;
++	int gpmc_ad12;
++	int gpmc_ad13;
++	int gpmc_ad14;
++	int gpmc_ad15;
++	int gpmc_a0;
++	int gpmc_a1;
++	int gpmc_a2;
++	int gpmc_a3;
++	int gpmc_a4;
++	int gpmc_a5;
++	int gpmc_a6;
++	int gpmc_a7;
++	int gpmc_a8;
++	int gpmc_a9;
++	int gpmc_a10;
++	int gpmc_a11;
++	int gpmc_wait0;
++	int gpmc_wpn;
++	int gpmc_be1n;
++	int gpmc_csn0;
++	int gpmc_csn1;
++	int gpmc_csn2;
++	int gpmc_csn3;
++	int gpmc_clk;
++	int gpmc_advn_ale;
++	int gpmc_oen_ren;
++	int gpmc_wen;
++	int gpmc_be0n_cle;
++	int lcd_data0;
++	int lcd_data1;
++	int lcd_data2;
++	int lcd_data3;
++	int lcd_data4;
++	int lcd_data5;
++	int lcd_data6;
++	int lcd_data7;
++	int lcd_data8;
++	int lcd_data9;
++	int lcd_data10;
++	int lcd_data11;
++	int lcd_data12;
++	int lcd_data13;
++	int lcd_data14;
++	int lcd_data15;
++	int lcd_vsync;
++	int lcd_hsync;
++	int lcd_pclk;
++	int lcd_ac_bias_en;
++	int mmc0_dat3;
++	int mmc0_dat2;
++	int mmc0_dat1;
++	int mmc0_dat0;
++	int mmc0_clk;
++	int mmc0_cmd;
++	int mii1_col;
++	int mii1_crs;
++	int mii1_rxerr;
++	int mii1_txen;
++	int mii1_rxdv;
++	int mii1_txd3;
++	int mii1_txd2;
++	int mii1_txd1;
++	int mii1_txd0;
++	int mii1_txclk;
++	int mii1_rxclk;
++	int mii1_rxd3;
++	int mii1_rxd2;
++	int mii1_rxd1;
++	int mii1_rxd0;
++	int rmii1_refclk;
++	int mdio_data;
++	int mdio_clk;
++	int spi0_sclk;
++	int spi0_d0;
++	int spi0_d1;
++	int spi0_cs0;
++	int spi0_cs1;
++	int ecap0_in_pwm0_out;
++	int uart0_ctsn;
++	int uart0_rtsn;
++	int uart0_rxd;
++	int uart0_txd;
++	int uart1_ctsn;
++	int uart1_rtsn;
++	int uart1_rxd;
++	int uart1_txd;
++	int i2c0_sda;
++	int i2c0_scl;
++	int mcasp0_aclkx;
++	int mcasp0_fsx;
++	int mcasp0_axr0;
++	int mcasp0_ahclkr;
++	int mcasp0_aclkr;
++	int mcasp0_fsr;
++	int mcasp0_axr1;
++	int mcasp0_ahclkx;
++	int xdma_event_intr0;
++	int xdma_event_intr1;
++	int nresetin_out;
++	int porz;
++	int nnmi;
++	int osc0_in;
++	int osc0_out;
++	int rsvd1;
++	int tms;
++	int tdi;
++	int tdo;
++	int tck;
++	int ntrst;
++	int emu0;
++	int emu1;
++	int osc1_in;
++	int osc1_out;
++	int pmic_power_en;
++	int rtc_porz;
++	int rsvd2;
++	int ext_wakeup;
++	int enz_kaldo_1p8v;
++	int usb0_dm;
++	int usb0_dp;
++	int usb0_ce;
++	int usb0_id;
++	int usb0_vbus;
++	int usb0_drvvbus;
++	int usb1_dm;
++	int usb1_dp;
++	int usb1_ce;
++	int usb1_id;
++	int usb1_vbus;
++	int usb1_drvvbus;
++	int ddr_resetn;
++	int ddr_csn0;
++	int ddr_cke;
++	int ddr_ck;
++	int ddr_nck;
++	int ddr_casn;
++	int ddr_rasn;
++	int ddr_wen;
++	int ddr_ba0;
++	int ddr_ba1;
++	int ddr_ba2;
++	int ddr_a0;
++	int ddr_a1;
++	int ddr_a2;
++	int ddr_a3;
++	int ddr_a4;
++	int ddr_a5;
++	int ddr_a6;
++	int ddr_a7;
++	int ddr_a8;
++	int ddr_a9;
++	int ddr_a10;
++	int ddr_a11;
++	int ddr_a12;
++	int ddr_a13;
++	int ddr_a14;
++	int ddr_a15;
++	int ddr_odt;
++	int ddr_d0;
++	int ddr_d1;
++	int ddr_d2;
++	int ddr_d3;
++	int ddr_d4;
++	int ddr_d5;
++	int ddr_d6;
++	int ddr_d7;
++	int ddr_d8;
++	int ddr_d9;
++	int ddr_d10;
++	int ddr_d11;
++	int ddr_d12;
++	int ddr_d13;
++	int ddr_d14;
++	int ddr_d15;
++	int ddr_dqm0;
++	int ddr_dqm1;
++	int ddr_dqs0;
++	int ddr_dqsn0;
++	int ddr_dqs1;
++	int ddr_dqsn1;
++	int ddr_vref;
++	int ddr_vtp;
++	int ddr_strben0;
++	int ddr_strben1;
++	int ain7;
++	int ain6;
++	int ain5;
++	int ain4;
++	int ain3;
++	int ain2;
++	int ain1;
++	int ain0;
++	int vrefp;
++	int vrefn;
++};
++
++struct module_pin_mux {
++	short reg_offset;
++	unsigned char val;
++};
++
++#define PAD_CTRL_BASE	0x800
++#define OFFSET(x)	(unsigned int) (&((struct pad_signals *) \
++				(PAD_CTRL_BASE))->x)
++
++static struct module_pin_mux uart0_pin_mux[] = {
++	{OFFSET(uart0_rxd), (MODE(0) | PULLUP_EN | RXACTIVE)},	/* UART0_RXD */
++	{OFFSET(uart0_txd), (MODE(0) | PULLUDEN)},		/* UART0_TXD */
++	{-1},
++};
++
++static struct module_pin_mux uart3_pin_mux[] = {
++	{OFFSET(spi0_cs1), (MODE(1) | PULLUDEN | RXACTIVE)},	/* UART3_RXD */
++	{OFFSET(ecap0_in_pwm0_out), (MODE(1) | PULLUDEN)},	/* UART3_TXD */
++	{-1},
++};
++
++
++#ifdef CONFIG_NAND
++static struct module_pin_mux nand_pin_mux[] = {
++	{OFFSET(gpmc_ad0), (MODE(0) | PULLUP_EN | RXACTIVE)},	/* NAND AD0 */
++	{OFFSET(gpmc_ad1), (MODE(0) | PULLUP_EN | RXACTIVE)},	/* NAND AD1 */
++	{OFFSET(gpmc_ad2), (MODE(0) | PULLUP_EN | RXACTIVE)},	/* NAND AD2 */
++	{OFFSET(gpmc_ad3), (MODE(0) | PULLUP_EN | RXACTIVE)},	/* NAND AD3 */
++	{OFFSET(gpmc_ad4), (MODE(0) | PULLUP_EN | RXACTIVE)},	/* NAND AD4 */
++	{OFFSET(gpmc_ad5), (MODE(0) | PULLUP_EN | RXACTIVE)},	/* NAND AD5 */
++	{OFFSET(gpmc_ad6), (MODE(0) | PULLUP_EN | RXACTIVE)},	/* NAND AD6 */
++	{OFFSET(gpmc_ad7), (MODE(0) | PULLUP_EN | RXACTIVE)},	/* NAND AD7 */
++	{OFFSET(gpmc_wait0), (MODE(0) | RXACTIVE | PULLUP_EN)}, /* NAND WAIT */
++	{OFFSET(gpmc_wpn), (MODE(7) | PULLUP_EN | RXACTIVE)},	/* NAND_WPN */
++	{OFFSET(gpmc_csn0), (MODE(0) | PULLUDEN)},	/* NAND_CS0 */
++	{OFFSET(gpmc_advn_ale), (MODE(0) | PULLUDEN)}, /* NAND_ADV_ALE */
++	{OFFSET(gpmc_oen_ren), (MODE(0) | PULLUDEN)},	/* NAND_OE */
++	{OFFSET(gpmc_wen), (MODE(0) | PULLUDEN)},	/* NAND_WEN */
++	{OFFSET(gpmc_be0n_cle), (MODE(0) | PULLUDEN)},	/* NAND_BE_CLE */
++	{-1},
++};
++#endif
++
++static struct module_pin_mux i2c0_pin_mux[] = {
++	{OFFSET(i2c0_sda), (MODE(0) | RXACTIVE | PULLUDEN | SLEWCTRL)},	/* I2C_DATA */
++	{OFFSET(i2c0_scl), (MODE(0) | RXACTIVE | PULLUDEN | SLEWCTRL)},	/* I2C_SCLK */
++	{-1},
++};
++
++static struct module_pin_mux i2c1_pin_mux[] = {
++	{OFFSET(spi0_d1), (MODE(2) | RXACTIVE | PULLUDEN | SLEWCTRL)},	/* I2C_DATA */
++	{OFFSET(spi0_cs0), (MODE(2) | RXACTIVE | PULLUDEN | SLEWCTRL)},	/* I2C_SCLK */
++	{-1},
++};
++
++static struct module_pin_mux i2c2_pin_mux[] = {
++	{OFFSET(uart1_ctsn), (MODE(3) | RXACTIVE | PULLUDEN | SLEWCTRL)},  /* I2C_DATA */
++	{OFFSET(uart1_rtsn), (MODE(3) | RXACTIVE | PULLUDEN | SLEWCTRL)}, /* I2C_SCLK */
++	{-1},
++};
++
++#ifndef CONFIG_NO_ETH
++static struct module_pin_mux rgmii1_pin_mux[] = {
++	{OFFSET(mii1_txen), MODE(2)},			/* RGMII1_TCTL */
++	{OFFSET(mii1_rxdv), MODE(2) | RXACTIVE},	/* RGMII1_RCTL */
++	{OFFSET(mii1_txd3), MODE(2)},			/* RGMII1_TD3 */
++	{OFFSET(mii1_txd2), MODE(2)},			/* RGMII1_TD2 */
++	{OFFSET(mii1_txd1), MODE(2)},			/* RGMII1_TD1 */
++	{OFFSET(mii1_txd0), MODE(2)},			/* RGMII1_TD0 */
++	{OFFSET(mii1_txclk), MODE(2)},			/* RGMII1_TCLK */
++	{OFFSET(mii1_rxclk), MODE(2) | RXACTIVE},	/* RGMII1_RCLK */
++	{OFFSET(mii1_rxd3), MODE(2) | RXACTIVE},	/* RGMII1_RD3 */
++	{OFFSET(mii1_rxd2), MODE(2) | RXACTIVE},	/* RGMII1_RD2 */
++	{OFFSET(mii1_rxd1), MODE(2) | RXACTIVE},	/* RGMII1_RD1 */
++	{OFFSET(mii1_rxd0), MODE(2) | RXACTIVE},	/* RGMII1_RD0 */
++	{OFFSET(mdio_data), MODE(0) | RXACTIVE | PULLUP_EN}, /* MDIO_DATA */
++	{OFFSET(mdio_clk), MODE(0) | PULLUP_EN},	/* MDIO_CLK */
++	{-1},
++};
++
++static struct module_pin_mux rgmii2_pin_mux[] = {
++	{OFFSET(gpmc_a0), MODE(2)},			/* RGMII2_TCTL */
++	{OFFSET(gpmc_a1), MODE(2) | RXACTIVE},		/* RGMII2_RCTL */
++	{OFFSET(gpmc_a2), MODE(2)},			/* RGMII2_TD3 */
++	{OFFSET(gpmc_a3), MODE(2)},			/* RGMII2_TD2 */
++	{OFFSET(gpmc_a4), MODE(2)},			/* RGMII2_TD1 */
++	{OFFSET(gpmc_a5), MODE(2)},			/* RGMII2_TD0 */
++	{OFFSET(gpmc_a6), MODE(2)},			/* RGMII2_TCLK */
++	{OFFSET(gpmc_a7), MODE(2) | RXACTIVE},		/* RGMII2_RCLK */
++	{OFFSET(gpmc_a8), MODE(2) | RXACTIVE},		/* RGMII2_RD3 */
++	{OFFSET(gpmc_a9), MODE(2) | RXACTIVE},		/* RGMII2_RD2 */
++	{OFFSET(gpmc_a10), MODE(2) | RXACTIVE},		/* RGMII2_RD1 */
++	{OFFSET(gpmc_a11), MODE(2) | RXACTIVE},		/* RGMII2_RD0 */
++	{OFFSET(mdio_data), MODE(0) | RXACTIVE | PULLUP_EN}, /* MDIO_DATA */
++	{OFFSET(mdio_clk), MODE(0) | PULLUP_EN},	/* MDIO_CLK */
++	{-1},
++};
++
++static struct module_pin_mux mii1_pin_mux[] = {
++	{OFFSET(mii1_rxerr), MODE(0) | RXACTIVE},	/* MII1_RXERR */
++	{OFFSET(mii1_txen), MODE(0)},			/* MII1_TXEN */
++	{OFFSET(mii1_rxdv), MODE(0) | RXACTIVE},	/* MII1_RXDV */
++	{OFFSET(mii1_txd3), MODE(0)},			/* MII1_TXD3 */
++	{OFFSET(mii1_txd2), MODE(0)},			/* MII1_TXD2 */
++	{OFFSET(mii1_txd1), MODE(0)},			/* MII1_TXD1 */
++	{OFFSET(mii1_txd0), MODE(0)},			/* MII1_TXD0 */
++	{OFFSET(mii1_txclk), MODE(0) | RXACTIVE},	/* MII1_TXCLK */
++	{OFFSET(mii1_rxclk), MODE(0) | RXACTIVE},	/* MII1_RXCLK */
++	{OFFSET(mii1_rxd3), MODE(0) | RXACTIVE},	/* MII1_RXD3 */
++	{OFFSET(mii1_rxd2), MODE(0) | RXACTIVE},	/* MII1_RXD2 */
++	{OFFSET(mii1_rxd1), MODE(0) | RXACTIVE},	/* MII1_RXD1 */
++	{OFFSET(mii1_rxd0), MODE(0) | RXACTIVE},	/* MII1_RXD0 */
++	{OFFSET(mdio_data), MODE(0) | RXACTIVE | PULLUP_EN}, /* MDIO_DATA */
++	{OFFSET(mdio_clk), MODE(0) | PULLUP_EN},	/* MDIO_CLK */
++	{-1},
++};
++
++static struct module_pin_mux rmii1_pin_mux[] = {
++   {OFFSET(mii1_crs), MODE(1) | RXACTIVE},     /* RMII1_CRS */
++   {OFFSET(mii1_rxerr), MODE(1) | RXACTIVE},   /* RMII1_RXERR */
++   {OFFSET(mii1_txen), MODE(1)},           /* RMII1_TXEN */
++   {OFFSET(mii1_txd1), MODE(1)},           /* RMII1_TXD1 */
++   {OFFSET(mii1_txd0), MODE(1)},           /* RMII1_TXD0 */
++   {OFFSET(mii1_rxd1), MODE(1) | RXACTIVE},    /* RMII1_RXD1 */
++   {OFFSET(mii1_rxd0), MODE(1) | RXACTIVE},    /* RMII1_RXD0 */
++   {OFFSET(mdio_data), MODE(0) | RXACTIVE | PULLUP_EN}, /* MDIO_DATA */
++   {OFFSET(mdio_clk), MODE(0) | PULLUP_EN},    /* MDIO_CLK */
++   {OFFSET(rmii1_refclk), MODE(0) | RXACTIVE}, /* RMII1_REFCLK */
++   {-1},
++};
++#endif
++
++#ifdef CONFIG_NOR
++static struct module_pin_mux nor_pin_mux[] = {
++	{OFFSET(lcd_data0), MODE(1) | PULLUDEN},	/* NOR_A0 */
++	{OFFSET(lcd_data1), MODE(1) | PULLUDEN},	/* NOR_A1 */
++	{OFFSET(lcd_data2), MODE(1) | PULLUDEN},	/* NOR_A2 */
++	{OFFSET(lcd_data3), MODE(1) | PULLUDEN},	/* NOR_A3 */
++	{OFFSET(lcd_data4), MODE(1) | PULLUDEN},	/* NOR_A4 */
++	{OFFSET(lcd_data5), MODE(1) | PULLUDEN},	/* NOR_A5 */
++	{OFFSET(lcd_data6), MODE(1) | PULLUDEN},	/* NOR_A6 */
++	{OFFSET(lcd_data7), MODE(1) | PULLUDEN},	/* NOR_A7 */
++	{OFFSET(gpmc_a8), MODE(0)},			/* NOR_A8 */
++	{OFFSET(gpmc_a9), MODE(0)},			/* NOR_A9 */
++	{OFFSET(gpmc_a10), MODE(0)},			/* NOR_A10 */
++	{OFFSET(gpmc_a11), MODE(0)},			/* NOR_A11 */
++	{OFFSET(lcd_data8), MODE(1) | PULLUDEN},	/* NOR_A12 */
++	{OFFSET(lcd_data9), MODE(1) | PULLUDEN},	/* NOR_A13 */
++	{OFFSET(lcd_data10), MODE(1) | PULLUDEN},	/* NOR_A14 */
++	{OFFSET(lcd_data11), MODE(1) | PULLUDEN},	/* NOR_A15 */
++	{OFFSET(lcd_data12), MODE(1) | PULLUDEN},	/* NOR_A16 */
++	{OFFSET(lcd_data13), MODE(1) | PULLUDEN},	/* NOR_A17 */
++	{OFFSET(lcd_data14), MODE(1) | PULLUDEN},	/* NOR_A18 */
++	{OFFSET(lcd_data15), MODE(1) | PULLUDEN},	/* NOR_A19 */
++	{OFFSET(gpmc_a4), MODE(4)},			/* NOR_A20 */
++	{OFFSET(gpmc_a5), MODE(4)},			/* NOR_A21 */
++	{OFFSET(gpmc_a6), MODE(4)},			/* NOR_A22 */
++	{OFFSET(gpmc_ad0), MODE(0) | RXACTIVE},		/* NOR_AD0 */
++	{OFFSET(gpmc_ad1), MODE(0) | RXACTIVE},		/* NOR_AD1 */
++	{OFFSET(gpmc_ad2), MODE(0) | RXACTIVE},		/* NOR_AD2 */
++	{OFFSET(gpmc_ad3), MODE(0) | RXACTIVE},		/* NOR_AD3 */
++	{OFFSET(gpmc_ad4), MODE(0) | RXACTIVE},		/* NOR_AD4 */
++	{OFFSET(gpmc_ad5), MODE(0) | RXACTIVE},		/* NOR_AD5 */
++	{OFFSET(gpmc_ad6), MODE(0) | RXACTIVE},		/* NOR_AD6 */
++	{OFFSET(gpmc_ad7), MODE(0) | RXACTIVE},		/* NOR_AD7 */
++	{OFFSET(gpmc_ad8), MODE(0) | RXACTIVE},		/* NOR_AD8 */
++	{OFFSET(gpmc_ad9), MODE(0) | RXACTIVE},		/* NOR_AD9 */
++	{OFFSET(gpmc_ad10), MODE(0) | RXACTIVE},	/* NOR_AD10 */
++	{OFFSET(gpmc_ad11), MODE(0) | RXACTIVE},	/* NOR_AD11 */
++	{OFFSET(gpmc_ad12), MODE(0) | RXACTIVE},	/* NOR_AD12 */
++	{OFFSET(gpmc_ad13), MODE(0) | RXACTIVE},	/* NOR_AD13 */
++	{OFFSET(gpmc_ad14), MODE(0) | RXACTIVE},	/* NOR_AD14 */
++	{OFFSET(gpmc_ad15), MODE(0) | RXACTIVE},	/* NOR_AD15 */
++	{OFFSET(gpmc_csn0), (MODE(0) | PULLUP_EN)},	/* NOR_CE */
++	{OFFSET(gpmc_oen_ren), (MODE(0) | PULLUP_EN)},	/* NOR_OE */
++	{OFFSET(gpmc_wen), (MODE(0) | PULLUP_EN)},	/* NOR_WEN */
++	{OFFSET(gpmc_wait0), (MODE(0) | RXACTIVE | PULLUP_EN)}, /* NOR WAIT */
++	{OFFSET(lcd_ac_bias_en), MODE(7) | RXACTIVE | PULLUDEN}, /* NOR RESET */
++	{-1},
++};
++#endif
++
++#ifdef CONFIG_MMC
++static struct module_pin_mux mmc0_pin_mux[] = {
++	{OFFSET(mmc0_dat3), (MODE(0) | RXACTIVE | PULLUP_EN)},	/* MMC0_DAT3 */
++	{OFFSET(mmc0_dat2), (MODE(0) | RXACTIVE | PULLUP_EN)},	/* MMC0_DAT2 */
++	{OFFSET(mmc0_dat1), (MODE(0) | RXACTIVE | PULLUP_EN)},	/* MMC0_DAT1 */
++	{OFFSET(mmc0_dat0), (MODE(0) | RXACTIVE | PULLUP_EN)},	/* MMC0_DAT0 */
++	{OFFSET(mmc0_clk), (MODE(0) | RXACTIVE | PULLUP_EN)},	/* MMC0_CLK */
++	{OFFSET(mmc0_cmd), (MODE(0) | RXACTIVE | PULLUP_EN)},	/* MMC0_CMD */
++	{OFFSET(mcasp0_aclkr), (MODE(4) | RXACTIVE)},		/* MMC0_WP */
++	{OFFSET(spi0_cs1), (MODE(5) | RXACTIVE | PULLUP_EN)},	/* MMC0_CD */
++	{-1},
++};
++
++static struct module_pin_mux mmc1_pin_mux[] = {
++	{OFFSET(gpmc_ad3), (MODE(1) | RXACTIVE)},	/* MMC1_DAT3 */
++	{OFFSET(gpmc_ad2), (MODE(1) | RXACTIVE)},	/* MMC1_DAT2 */
++	{OFFSET(gpmc_ad1), (MODE(1) | RXACTIVE)},	/* MMC1_DAT1 */
++	{OFFSET(gpmc_ad0), (MODE(1) | RXACTIVE)},	/* MMC1_DAT0 */
++	{OFFSET(gpmc_csn1), (MODE(2) | RXACTIVE | PULLUP_EN)},	/* MMC1_CLK */
++	{OFFSET(gpmc_csn2), (MODE(2) | RXACTIVE | PULLUP_EN)},	/* MMC1_CMD */
++	{OFFSET(uart1_rxd), (MODE(1) | RXACTIVE | PULLUP_EN)},	/* MMC1_WP */
++	{OFFSET(mcasp0_fsx), (MODE(4) | RXACTIVE)},	/* MMC1_CD */
++	{-1},
++};
++#endif
++
++#ifdef CONFIG_SPI
++static struct module_pin_mux spi0_pin_mux[] = {
++	{OFFSET(spi0_sclk), MODE(0) | PULLUDEN | RXACTIVE},	/*SPI0_SCLK */
++	{OFFSET(spi0_d0), MODE(0) | PULLUDEN | PULLUP_EN |
++							RXACTIVE}, /*SPI0_D0 */
++	{OFFSET(spi0_d1), MODE(0) | PULLUDEN |
++							RXACTIVE}, /*SPI0_D1 */
++	{OFFSET(spi0_cs0), MODE(0) | PULLUDEN | PULLUP_EN | RXACTIVE},	/*SPI0_CS0 */
++	{-1},
++};
++
++static struct module_pin_mux spi1_pin_mux[] = {
++	{OFFSET(mcasp0_aclkx), MODE(3) | PULLUDEN | RXACTIVE},	/*SPI0_SCLK */
++	{OFFSET(mcasp0_fsx), MODE(3) | PULLUDEN | PULLUP_EN |
++							RXACTIVE}, /*SPI0_D0 */
++	{OFFSET(mcasp0_axr0), MODE(3) | PULLUDEN | RXACTIVE}, /*SPI0_D1 */
++	{OFFSET(mcasp0_ahclkr), MODE(3) | PULLUDEN | PULLUP_EN |
++							RXACTIVE}, /*SPI0_CS0 */
++	{-1},
++};
++#endif
++
++/*
++ * Configure the pin mux for the module
++ */
++static void configure_module_pin_mux(struct module_pin_mux *mod_pin_mux)
++{
++	int i;
++
++	if (!mod_pin_mux)
++		return;
++
++	for (i = 0; mod_pin_mux[i].reg_offset != -1; i++)
++		MUX_CFG(mod_pin_mux[i].val, mod_pin_mux[i].reg_offset);
++}
++
++void enable_mii1_pin_mux(void)
++{
++	configure_module_pin_mux(mii1_pin_mux);
++}
++
++void enable_uart0_pin_mux(void)
++{
++	configure_module_pin_mux(uart0_pin_mux);
++}
+diff --git a/arch/arm/mach-omap/include/mach/am33xx-clock.h b/arch/arm/mach-omap/include/mach/am33xx-clock.h
+index 654c104..f9bfd36 100644
+--- a/arch/arm/mach-omap/include/mach/am33xx-clock.h
++++ b/arch/arm/mach-omap/include/mach/am33xx-clock.h
+@@ -19,7 +19,179 @@
+ #ifndef _AM33XX_CLOCKS_H_
+ #define _AM33XX_CLOCKS_H_
+ 
++#include "am33xx-silicon.h"
++
+ /** PRM Clock Regs */
+ #define PRM_RSTCTRL		0x0f00
+ 
++/* Put the pll config values over here */
++
++#define OSC	24
++
++/* MAIN PLL Fdll = 1 GHZ, */
++#define MPUPLL_M_500	500	/* 125 * n */
++#define MPUPLL_M_550	550	/* 125 * n */
++#define MPUPLL_M_600	600	/* 125 * n */
++#define MPUPLL_M_720	720	/* 125 * n */
++
++#define MPUPLL_N	23	/* (n -1 ) */
++#define MPUPLL_M2	1
++
++/* Core PLL Fdll = 1 GHZ, */
++#define COREPLL_M	1000	/* 125 * n */
++#define COREPLL_N	23	/* (n -1 ) */
++
++#define COREPLL_M4	10	/* CORE_CLKOUTM4 = 200 MHZ */
++#define COREPLL_M5	8	/* CORE_CLKOUTM5 = 250 MHZ */
++#define COREPLL_M6	4	/* CORE_CLKOUTM6 = 500 MHZ */
++
++/*
++ * USB PHY clock is 960 MHZ. Since, this comes directly from Fdll, Fdll
++ * frequency needs to be set to 960 MHZ. Hence,
++ * For clkout = 192 MHZ, Fdll = 960 MHZ, divider values are given below
++ */
++#define PERPLL_M	960
++#define PERPLL_N	23
++#define PERPLL_M2	5
++
++/* DDR Freq is 166 MHZ for now*/
++/* Set Fdll = 400 MHZ , Fdll = M * 2 * CLKINP/ N + 1; clkout = Fdll /(2 * M2) */
++//#if	(CONFIG_AM335X_EVM_IS_13x13 == 1)
++#if 0
++#define DDRPLL_M	166	/* M/N + 1 = 25/3 */
++#else
++#define DDRPLL_M	266
++#endif
++
++#define DDRPLL_N	23
++#define DDRPLL_M2	1
++
++/* PRCM */
++/* Module Offsets */
++#define CM_PER                          (OMAP_PRM_BASE + 0x0)
++#define CM_WKUP                         (OMAP_PRM_BASE + 0x400)
++#define CM_DPLL                         (OMAP_PRM_BASE + 0x500)
++#define CM_DEVICE                       (OMAP_PRM_BASE + 0x0700)
++#define CM_CEFUSE                       (OMAP_PRM_BASE + 0x0A00)
++#define PRM_DEVICE                      (OMAP_PRM_BASE + 0x0F00)
++/* Register Offsets */
++/* Core PLL ADPLLS */
++#define CM_CLKSEL_DPLL_CORE             (CM_WKUP + 0x68)
++#define CM_CLKMODE_DPLL_CORE            (CM_WKUP + 0x90)
++
++/* Core HSDIV */
++#define CM_DIV_M4_DPLL_CORE             (CM_WKUP + 0x80)
++#define CM_DIV_M5_DPLL_CORE             (CM_WKUP + 0x84)
++#define CM_DIV_M6_DPLL_CORE             (CM_WKUP + 0xD8)
++#define CM_IDLEST_DPLL_CORE             (CM_WKUP + 0x5c)
++
++/* Peripheral PLL */
++#define CM_CLKSEL_DPLL_PER              (CM_WKUP + 0x9c)
++#define CM_CLKMODE_DPLL_PER             (CM_WKUP + 0x8c)
++#define CM_DIV_M2_DPLL_PER              (CM_WKUP + 0xAC)
++#define CM_IDLEST_DPLL_PER              (CM_WKUP + 0x70)
++
++/* Display PLL */
++#define CM_CLKSEL_DPLL_DISP             (CM_WKUP + 0x54)
++#define CM_CLKMODE_DPLL_DISP            (CM_WKUP + 0x98)
++#define CM_DIV_M2_DPLL_DISP             (CM_WKUP + 0xA4)
++
++/* DDR PLL */
++#define CM_CLKSEL_DPLL_DDR              (CM_WKUP + 0x40)
++#define CM_CLKMODE_DPLL_DDR             (CM_WKUP + 0x94)
++#define CM_DIV_M2_DPLL_DDR              (CM_WKUP + 0xA0)
++#define CM_IDLEST_DPLL_DDR              (CM_WKUP + 0x34)
++
++/* MPU PLL */
++#define CM_CLKSEL_DPLL_MPU              (CM_WKUP + 0x2c)
++#define CM_CLKMODE_DPLL_MPU             (CM_WKUP + 0x88)
++#define CM_DIV_M2_DPLL_MPU              (CM_WKUP + 0xA8)
++#define CM_IDLEST_DPLL_MPU              (CM_WKUP + 0x20)
++
++/* TIMER Clock Source Select */
++#define CLKSEL_TIMER2_CLK               (CM_DPLL + 0x8)
++
++/* Interconnect clocks */
++#define CM_PER_L4LS_CLKCTRL             (CM_PER + 0x60) /* EMIF */
++#define CM_PER_L4FW_CLKCTRL             (CM_PER + 0x64) /* EMIF FW */
++#define CM_PER_L3_CLKCTRL               (CM_PER + 0xE0) /* OCMC RAM */
++#define CM_PER_L3_INSTR_CLKCTRL         (CM_PER + 0xDC)
++#define CM_PER_L4HS_CLKCTRL             (CM_PER + 0x120)
++#define CM_WKUP_L4WKUP_CLKCTRL          (CM_WKUP + 0x0c)/* UART0 */
++
++/* Domain Wake UP */
++#define CM_WKUP_CLKSTCTRL               (CM_WKUP + 0)   /* UART0 */
++#define CM_PER_L4LS_CLKSTCTRL           (CM_PER + 0x0)  /* TIMER2 */
++#define CM_PER_L3_CLKSTCTRL             (CM_PER + 0x0c) /* EMIF */
++#define CM_PER_L4FW_CLKSTCTRL           (CM_PER + 0x08) /* EMIF FW */
++#define CM_PER_L3S_CLKSTCTRL            (CM_PER + 0x4)
++#define CM_PER_L4HS_CLKSTCTRL           (CM_PER + 0x011c)
++#define CM_CEFUSE_CLKSTCTRL             (CM_CEFUSE + 0x0)
++
++/* Module Enable Registers */
++#define CM_PER_TIMER2_CLKCTRL           (CM_PER + 0x80) /* Timer2 */
++#define CM_WKUP_UART0_CLKCTRL           (CM_WKUP + 0xB4)/* UART0 */
++#define CM_WKUP_CONTROL_CLKCTRL         (CM_WKUP + 0x4) /* Control Module */
++#define CM_PER_EMIF_CLKCTRL             (CM_PER + 0x28) /* EMIF */
++#define CM_PER_EMIF_FW_CLKCTRL          (CM_PER + 0xD0) /* EMIF FW */
++#define CM_PER_GPMC_CLKCTRL             (CM_PER + 0x30) /* GPMC */
++#define CM_PER_ELM_CLKCTRL              (CM_PER + 0x40) /* ELM */
++#define CM_PER_SPI0_CLKCTRL             (CM_PER + 0x4c) /* SPI0 */
++#define CM_PER_SPI1_CLKCTRL             (CM_PER + 0x50) /* SPI1 */
++#define CM_WKUP_I2C0_CLKCTRL            (CM_WKUP + 0xB8) /* I2C0 */
++#define CM_PER_CPGMAC0_CLKCTRL          (CM_PER + 0x14) /* Ethernet */
++#define CM_PER_CPSW_CLKSTCTRL           (CM_PER + 0x144)/* Ethernet */
++#define CM_PER_OCMCRAM_CLKCTRL          (CM_PER + 0x2C) /* OCMC RAM */
++#define CM_PER_GPIO2_CLKCTRL            (CM_PER + 0xB0) /* GPIO2 */
++#define CM_PER_UART3_CLKCTRL            (CM_PER + 0x74) /* UART3 */
++#define CM_PER_I2C1_CLKCTRL             (CM_PER + 0x48) /* I2C1 */
++#define CM_PER_I2C2_CLKCTRL             (CM_PER + 0x44) /* I2C2 */
++#define CM_WKUP_GPIO0_CLKCTRL           (CM_WKUP + 0x8) /* GPIO0 */
++
++#define CM_PER_MMC0_CLKCTRL             (CM_PER + 0x3C)
++#define CM_PER_MMC1_CLKCTRL             (CM_PER + 0xF4)
++#define CM_PER_MMC2_CLKCTRL             (CM_PER + 0xF8)
++
++/* PRCM */
++#define CM_DPLL_OFFSET                  (OMAP_PRM_BASE + 0x0300)
++
++#define CM_ALWON_WDTIMER_CLKCTRL        (OMAP_PRM_BASE + 0x158C)
++#define CM_ALWON_SPI_CLKCTRL            (OMAP_PRM_BASE + 0x1590)
++#define CM_ALWON_CONTROL_CLKCTRL        (OMAP_PRM_BASE + 0x15C4)
++
++#define CM_ALWON_L3_SLOW_CLKSTCTRL      (OMAP_PRM_BASE + 0x1400)
++
++#define CM_ALWON_GPIO_0_CLKCTRL         (OMAP_PRM_BASE + 0x155c)
++#define CM_ALWON_GPIO_0_OPTFCLKEN_DBCLK (OMAP_PRM_BASE + 0x155c)
++
++/* Ethernet */
++#define CM_ETHERNET_CLKSTCTRL           (OMAP_PRM_BASE + 0x1404)
++#define CM_ALWON_ETHERNET_0_CLKCTRL     (OMAP_PRM_BASE + 0x15D4)
++#define CM_ALWON_ETHERNET_1_CLKCTRL     (OMAP_PRM_BASE + 0x15D8)
++
++/* UARTs */
++#define CM_ALWON_UART_0_CLKCTRL         (OMAP_PRM_BASE + 0x1550)
++#define CM_ALWON_UART_1_CLKCTRL         (OMAP_PRM_BASE + 0x1554)
++#define CM_ALWON_UART_2_CLKCTRL         (OMAP_PRM_BASE + 0x1558)
++
++/* I2C */
++/* Note: In ti814x I2C0 and I2C2 have common clk control */
++#define CM_ALWON_I2C_0_CLKCTRL          (OMAP_PRM_BASE + 0x1564)
++
++/* EMIF4 PRCM Defintion */
++#define CM_DEFAULT_L3_FAST_CLKSTCTRL    (OMAP_PRM_BASE + 0x0508)
++#define CM_DEFAULT_EMIF_0_CLKCTRL       (OMAP_PRM_BASE + 0x0520)
++#define CM_DEFAULT_EMIF_1_CLKCTRL       (OMAP_PRM_BASE + 0x0524)
++#define CM_DEFAULT_DMM_CLKCTRL          (OMAP_PRM_BASE + 0x0528)
++#define CM_DEFAULT_FW_CLKCTRL           (OMAP_PRM_BASE + 0x052C)
++
++/* ALWON PRCM */
++#define CM_ALWON_OCMC_0_CLKSTCTRL       CM_PER_L3_CLKSTCTRL
++#define CM_ALWON_OCMC_0_CLKCTRL         CM_PER_OCMCRAM_CLKCTRL
++
++#define CM_ALWON_GPMC_CLKCTRL           CM_PER_GPMC_CLKCTRL
++
++extern void pll_init(void);
++extern void enable_ddr_clocks(void);
++
+ #endif  /* endif _AM33XX_CLOCKS_H_ */
+diff --git a/arch/arm/mach-omap/include/mach/am33xx-mux.h b/arch/arm/mach-omap/include/mach/am33xx-mux.h
+new file mode 100644
+index 0000000..38a1aae
+--- /dev/null
++++ b/arch/arm/mach-omap/include/mach/am33xx-mux.h
+@@ -0,0 +1,19 @@
++/*
++ * Copyright (C) 2011 Texas Instruments Incorporated - http://www.ti.com/
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License as
++ * published by the Free Software Foundation version 2.
++ *
++ * This program is distributed "as is" WITHOUT ANY WARRANTY of any
++ * kind, whether express or implied; without even the implied warranty
++ * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++ * GNU General Public License for more details.
++ */
++#ifndef __AM33XX_MUX_H__
++#define __AM33XX_MUX_H__
++
++extern void enable_mii1_pin_mux(void);
++extern void enable_uart0_pin_mux(void);
++
++#endif /*__AM33XX_MUX_H__ */
+diff --git a/arch/arm/mach-omap/include/mach/am33xx-silicon.h b/arch/arm/mach-omap/include/mach/am33xx-silicon.h
+index 7b13991..0cf916c 100644
+--- a/arch/arm/mach-omap/include/mach/am33xx-silicon.h
++++ b/arch/arm/mach-omap/include/mach/am33xx-silicon.h
+@@ -27,7 +27,6 @@
+ #define AM33XX_UART1_BASE		(AM33XX_L4_PER_BASE + 0x22000)
+ #define AM33XX_UART2_BASE		(AM33XX_L4_PER_BASE + 0x24000)
+ 
+-
+ /* EMFI Registers */
+ #define AM33XX_EMFI0_BASE		0x4C000000
+ 
+@@ -48,4 +47,161 @@
+ 
+ #define PRM_RSTCTRL_RESET		0x1
+ 
++/* CTRL */
++#define OMAP_CTRL_BASE			(AM33XX_L4_WKUP_BASE + 0x210000)
++
++/* Watchdog Timer */
++#define WDT_BASE                        0x44E35000
++
++/* EMIF Base address */
++#define EMIF4_0_CFG_BASE                0x4C000000
++#define EMIF4_1_CFG_BASE                0x4D000000
++#define DMM_BASE                        0x4E000000
++
++#define DDRPHY_0_CONFIG_BASE            (CTRL_BASE + 0x1400)
++#define DDRPHY_CONFIG_BASE              DDRPHY_0_CONFIG_BASE
++
++#define AM335X_CPSW_BASE               0x4A100000
++#define AM335X_CPSW_MDIO_BASE          0x4A101000
++
++/*DMM & EMIF4 MMR Declaration*/
++#define DMM_LISA_MAP__0			(DMM_BASE + 0x40)
++#define DMM_LISA_MAP__1			(DMM_BASE + 0x44)
++#define DMM_LISA_MAP__2			(DMM_BASE + 0x48)
++#define DMM_LISA_MAP__3			(DMM_BASE + 0x4C)
++#define DMM_PAT_BASE_ADDR		(DMM_BASE + 0x460)
++
++#define EMIF_MOD_ID_REV			(EMIF4_0_CFG_BASE + 0x0)
++#define EMIF4_0_SDRAM_STATUS            (EMIF4_0_CFG_BASE + 0x04)
++#define EMIF4_0_SDRAM_CONFIG            (EMIF4_0_CFG_BASE + 0x08)
++#define EMIF4_0_SDRAM_CONFIG2           (EMIF4_0_CFG_BASE + 0x0C)
++#define EMIF4_0_SDRAM_REF_CTRL          (EMIF4_0_CFG_BASE + 0x10)
++#define EMIF4_0_SDRAM_REF_CTRL_SHADOW   (EMIF4_0_CFG_BASE + 0x14)
++#define EMIF4_0_SDRAM_TIM_1             (EMIF4_0_CFG_BASE + 0x18)
++#define EMIF4_0_SDRAM_TIM_1_SHADOW      (EMIF4_0_CFG_BASE + 0x1C)
++#define EMIF4_0_SDRAM_TIM_2             (EMIF4_0_CFG_BASE + 0x20)
++#define EMIF4_0_SDRAM_TIM_2_SHADOW      (EMIF4_0_CFG_BASE + 0x24)
++#define EMIF4_0_SDRAM_TIM_3             (EMIF4_0_CFG_BASE + 0x28)
++#define EMIF4_0_SDRAM_TIM_3_SHADOW      (EMIF4_0_CFG_BASE + 0x2C)
++#define EMIF0_0_SDRAM_MGMT_CTRL         (EMIF4_0_CFG_BASE + 0x38)
++#define EMIF0_0_SDRAM_MGMT_CTRL_SHD     (EMIF4_0_CFG_BASE + 0x3C)
++#define EMIF4_0_DDR_PHY_CTRL_1          (EMIF4_0_CFG_BASE + 0xE4)
++#define EMIF4_0_DDR_PHY_CTRL_1_SHADOW   (EMIF4_0_CFG_BASE + 0xE8)
++#define EMIF4_0_DDR_PHY_CTRL_2          (EMIF4_0_CFG_BASE + 0xEC)
++#define EMIF4_0_IODFT_TLGC              (EMIF4_0_CFG_BASE + 0x60)
++
++#define EMIF4_1_SDRAM_CONFIG		(EMIF4_1_CFG_BASE + 0x08)
++#define EMIF4_1_SDRAM_CONFIG2		(EMIF4_1_CFG_BASE + 0x0C)
++#define EMIF4_1_SDRAM_REF_CTRL		(EMIF4_1_CFG_BASE + 0x10)
++#define EMIF4_1_SDRAM_REF_CTRL_SHADOW	(EMIF4_1_CFG_BASE + 0x14)
++#define EMIF4_1_SDRAM_TIM_1		(EMIF4_1_CFG_BASE + 0x18)
++#define EMIF4_1_SDRAM_TIM_1_SHADOW	(EMIF4_1_CFG_BASE + 0x1C)
++#define EMIF4_1_SDRAM_TIM_2		(EMIF4_1_CFG_BASE + 0x20)
++#define EMIF4_1_SDRAM_TIM_2_SHADOW	(EMIF4_1_CFG_BASE + 0x24)
++#define EMIF4_1_SDRAM_TIM_3		(EMIF4_1_CFG_BASE + 0x28)
++#define EMIF4_1_SDRAM_TIM_3_SHADOW	(EMIF4_1_CFG_BASE + 0x2C)
++#define EMIF4_1_DDR_PHY_CTRL_1		(EMIF4_1_CFG_BASE + 0xE4)
++#define EMIF4_1_DDR_PHY_CTRL_1_SHADOW	(EMIF4_1_CFG_BASE + 0xE8)
++#define EMIF4_1_IODFT_TLGC		(EMIF4_1_CFG_BASE + 0x60)
++
++#define VTP0_CTRL_REG			0x44E10E0C
++#define VTP1_CTRL_REG			0x48140E10
++
++/* OCMC */
++#define SRAM0_SIZE			(0x1B400) /* 109 KB */
++#define SRAM_GPMC_STACK_SIZE		(0x40)
++
++#define LOW_LEVEL_SRAM_STACK		(SRAM0_START + SRAM0_SIZE - 4)
++
++/* GPMC related */
++#define GPMC_CONFIG_CS0			(0x60)
++#define GPMC_CONFIG_CS0_BASE		(GPMC_BASE + GPMC_CONFIG_CS0)
++#define GPMC_CONFIG1			(0x00)
++#define GPMC_CONFIG2			(0x04)
++#define GPMC_CONFIG3			(0x08)
++#define GPMC_CONFIG4			(0x0C)
++#define GPMC_CONFIG5			(0x10)
++#define GPMC_CONFIG6			(0x14)
++#define GPMC_CONFIG7			(0x18)
++
++/* DDR offsets */
++#define	DDR_PHY_BASE_ADDR		0x44E12000
++#define	DDR_IO_CTRL			0x44E10E04
++#define	DDR_CKE_CTRL			0x44E1131C
++#define	CONTROL_BASE_ADDR		0x44E10000
++
++#define	DDR_CMD0_IOCTRL			(CONTROL_BASE_ADDR + 0x1404)
++#define	DDR_CMD1_IOCTRL			(CONTROL_BASE_ADDR + 0x1408)
++#define	DDR_CMD2_IOCTRL			(CONTROL_BASE_ADDR + 0x140C)
++#define	DDR_DATA0_IOCTRL		(CONTROL_BASE_ADDR + 0x1440)
++#define	DDR_DATA1_IOCTRL		(CONTROL_BASE_ADDR + 0x1444)
++
++#define	CMD0_CTRL_SLAVE_RATIO_0		(DDR_PHY_BASE_ADDR + 0x01C)
++#define	CMD0_CTRL_SLAVE_FORCE_0		(DDR_PHY_BASE_ADDR + 0x020)
++#define	CMD0_CTRL_SLAVE_DELAY_0		(DDR_PHY_BASE_ADDR + 0x024)
++#define	CMD0_DLL_LOCK_DIFF_0		(DDR_PHY_BASE_ADDR + 0x028)
++#define	CMD0_INVERT_CLKOUT_0		(DDR_PHY_BASE_ADDR + 0x02C)
++
++#define	CMD1_CTRL_SLAVE_RATIO_0		(DDR_PHY_BASE_ADDR + 0x050)
++#define	CMD1_CTRL_SLAVE_FORCE_0		(DDR_PHY_BASE_ADDR + 0x054)
++#define	CMD1_CTRL_SLAVE_DELAY_0		(DDR_PHY_BASE_ADDR + 0x058)
++#define	CMD1_DLL_LOCK_DIFF_0		(DDR_PHY_BASE_ADDR + 0x05C)
++#define	CMD1_INVERT_CLKOUT_0		(DDR_PHY_BASE_ADDR + 0x060)
++
++#define	CMD2_CTRL_SLAVE_RATIO_0		(DDR_PHY_BASE_ADDR + 0x084)
++#define	CMD2_CTRL_SLAVE_FORCE_0		(DDR_PHY_BASE_ADDR + 0x088)
++#define	CMD2_CTRL_SLAVE_DELAY_0		(DDR_PHY_BASE_ADDR + 0x08C)
++#define	CMD2_DLL_LOCK_DIFF_0		(DDR_PHY_BASE_ADDR + 0x090)
++#define	CMD2_INVERT_CLKOUT_0		(DDR_PHY_BASE_ADDR + 0x094)
++
++#define DATA0_RD_DQS_SLAVE_RATIO_0	(DDR_PHY_BASE_ADDR + 0x0C8)
++#define DATA0_RD_DQS_SLAVE_RATIO_1	(DDR_PHY_BASE_ADDR + 0x0CC)
++#define	DATA0_WR_DQS_SLAVE_RATIO_0	(DDR_PHY_BASE_ADDR + 0x0DC)
++
++#define	DATA0_WR_DQS_SLAVE_RATIO_1	(DDR_PHY_BASE_ADDR + 0x0E0)
++#define	DATA0_WRLVL_INIT_RATIO_0	(DDR_PHY_BASE_ADDR + 0x0F0)
++
++#define	DATA0_WRLVL_INIT_RATIO_1	(DDR_PHY_BASE_ADDR + 0x0F4)
++#define	DATA0_GATELVL_INIT_RATIO_0	(DDR_PHY_BASE_ADDR + 0x0FC)
++
++#define	DATA0_GATELVL_INIT_RATIO_1	(DDR_PHY_BASE_ADDR + 0x100)
++#define	DATA0_FIFO_WE_SLAVE_RATIO_0	(DDR_PHY_BASE_ADDR + 0x108)
++
++#define	DATA0_FIFO_WE_SLAVE_RATIO_1	(DDR_PHY_BASE_ADDR + 0x10C)
++#define	DATA0_WR_DATA_SLAVE_RATIO_0	(DDR_PHY_BASE_ADDR + 0x120)
++
++#define	DATA0_WR_DATA_SLAVE_RATIO_1	(DDR_PHY_BASE_ADDR + 0x124)
++#define DATA0_DLL_LOCK_DIFF_0		(DDR_PHY_BASE_ADDR + 0x138)
++
++#define DATA0_RANK0_DELAYS_0		(DDR_PHY_BASE_ADDR + 0x134)
++#define	DATA1_RANK0_DELAYS_0		(DDR_PHY_BASE_ADDR + 0x1D8)
++
++/* Ethernet MAC ID from EFuse */
++#define MAC_ID0_LO	(CTRL_BASE + 0x630)
++#define MAC_ID0_HI	(CTRL_BASE + 0x634)
++#define MAC_ID1_LO	(CTRL_BASE + 0x638)
++#define MAC_ID1_HI	(CTRL_BASE + 0x63c)
++#define MAC_MII_SEL	(CTRL_BASE + 0x650)
++
++/* WDT related */
++#define WDT_WDSC	(WDT_BASE + 0x010)
++#define WDT_WDST	(WDT_BASE + 0x014)
++#define WDT_WISR	(WDT_BASE + 0x018)
++#define WDT_WIER	(WDT_BASE + 0x01C)
++#define WDT_WWER	(WDT_BASE + 0x020)
++#define WDT_WCLR	(WDT_BASE + 0x024)
++#define WDT_WCRR	(WDT_BASE + 0x028)
++#define WDT_WLDR	(WDT_BASE + 0x02C)
++#define WDT_WTGR	(WDT_BASE + 0x030)
++#define WDT_WWPS	(WDT_BASE + 0x034)
++#define WDT_WDLY	(WDT_BASE + 0x044)
++#define WDT_WSPR	(WDT_BASE + 0x048)
++#define WDT_WIRQEOI	(WDT_BASE + 0x050)
++#define WDT_WIRQSTATRAW	(WDT_BASE + 0x054)
++#define WDT_WIRQSTAT	(WDT_BASE + 0x058)
++#define WDT_WIRQENSET	(WDT_BASE + 0x05C)
++#define WDT_WIRQENCLR	(WDT_BASE + 0x060)
++
++#define WDT_UNFREEZE	(CTRL_BASE + 0x100)
++
+ #endif
+diff --git a/arch/arm/mach-omap/s32k_clksource.c b/arch/arm/mach-omap/s32k_clksource.c
+index 6ce0c64..5d45541 100644
+--- a/arch/arm/mach-omap/s32k_clksource.c
++++ b/arch/arm/mach-omap/s32k_clksource.c
+@@ -46,7 +46,8 @@
+  */
+ static uint64_t s32k_clocksource_read(void)
+ {
+-	return readl(S32K_CR);
++//	return readl(S32K_CR);
++    return readl(0x44e0503c);
+ }
+ 
+ /* A bit obvious isn't it? */
+@@ -69,6 +70,8 @@ static int s32k_clocksource_init(void)
+ {
+ 	s32k_cs.mult = clocksource_hz2mult(S32K_FREQUENCY, s32k_cs.shift);
+ 
++    writel(0x00000003, 0x44e05038);
++
+ 	return init_clock(&s32k_cs);
+ }
+ 
+diff --git a/arch/arm/mach-omap/xload.c b/arch/arm/mach-omap/xload.c
+index 9fa8221..4ef72e7 100644
+--- a/arch/arm/mach-omap/xload.c
++++ b/arch/arm/mach-omap/xload.c
+@@ -141,7 +141,10 @@ static void *omap_xload_boot_spi(int offset)
+ 
+ enum omap_boot_src omap_bootsrc(void)
+ {
+-#if defined(CONFIG_ARCH_OMAP3)
++#if defined(CONFIG_MACH_BEAGLEBONE)
++    /* only support for MMC */
++    return OMAP_BOOTSRC_MMC1;
++#elif defined(CONFIG_ARCH_OMAP3)
+ 	return omap3_bootsrc();
+ #elif defined(CONFIG_ARCH_OMAP4)
+ 	return omap4_bootsrc();

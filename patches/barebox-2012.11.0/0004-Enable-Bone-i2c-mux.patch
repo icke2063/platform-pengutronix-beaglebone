@@ -1,0 +1,64 @@
+From 5832843ffe8482ec30adcc981b1bcc95a5174622 Mon Sep 17 00:00:00 2001
+From: Jan Luebbe <jlu@pengutronix.de>
+Date: Sat, 20 Oct 2012 15:39:18 +0200
+Subject: [PATCH] Enable Bone i2c mux
+
+Signed-off-by: Jan Luebbe <jlu@pengutronix.de>
+---
+ arch/arm/boards/beaglebone/board.c           |    1 +
+ arch/arm/mach-omap/am33xx_mux.c              |   15 +++++++++++++++
+ arch/arm/mach-omap/include/mach/am33xx-mux.h |    3 +++
+ 3 files changed, 19 insertions(+)
+
+diff --git a/arch/arm/boards/beaglebone/board.c b/arch/arm/boards/beaglebone/board.c
+index 8180e28..110122b 100644
+--- a/arch/arm/boards/beaglebone/board.c
++++ b/arch/arm/boards/beaglebone/board.c
+@@ -328,6 +328,7 @@ static int beagle_board_init(void)
+ 		s_init();
+ 
+ 	enable_mii1_pin_mux();
++	enable_i2c0_pin_mux();
+ 
+ 	return 0;
+ }
+diff --git a/arch/arm/mach-omap/am33xx_mux.c b/arch/arm/mach-omap/am33xx_mux.c
+index db841aa..b48a25c 100644
+--- a/arch/arm/mach-omap/am33xx_mux.c
++++ b/arch/arm/mach-omap/am33xx_mux.c
+@@ -491,6 +491,21 @@ void enable_mii1_pin_mux(void)
+ 	configure_module_pin_mux(mii1_pin_mux);
+ }
+ 
++void enable_i2c0_pin_mux(void)
++{
++	configure_module_pin_mux(i2c0_pin_mux);
++}
++
++void enable_i2c1_pin_mux(void)
++{
++	configure_module_pin_mux(i2c1_pin_mux);
++}
++
++void enable_i2c2_pin_mux(void)
++{
++	configure_module_pin_mux(i2c2_pin_mux);
++}
++
+ void enable_uart0_pin_mux(void)
+ {
+ 	configure_module_pin_mux(uart0_pin_mux);
+diff --git a/arch/arm/mach-omap/include/mach/am33xx-mux.h b/arch/arm/mach-omap/include/mach/am33xx-mux.h
+index 38a1aae..ed328f5 100644
+--- a/arch/arm/mach-omap/include/mach/am33xx-mux.h
++++ b/arch/arm/mach-omap/include/mach/am33xx-mux.h
+@@ -14,6 +14,9 @@
+ #define __AM33XX_MUX_H__
+ 
+ extern void enable_mii1_pin_mux(void);
++extern void enable_i2c0_pin_mux(void);
++extern void enable_i2c1_pin_mux(void);
++extern void enable_i2c2_pin_mux(void);
+ extern void enable_uart0_pin_mux(void);
+ 
+ #endif /*__AM33XX_MUX_H__ */
