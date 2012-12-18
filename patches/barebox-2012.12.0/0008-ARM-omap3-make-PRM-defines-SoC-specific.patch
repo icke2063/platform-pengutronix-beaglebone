@@ -1,0 +1,37 @@
+From e4f0a3e002068ce25881f6c7c6e68477e450b237 Mon Sep 17 00:00:00 2001
+From: Sascha Hauer <s.hauer@pengutronix.de>
+Date: Thu, 13 Dec 2012 17:30:43 +0100
+Subject: [PATCH] ARM omap3: make PRM defines SoC specific
+
+Signed-off-by: Sascha Hauer <s.hauer@pengutronix.de>
+---
+ arch/arm/mach-omap/include/mach/omap3-silicon.h |    3 +--
+ arch/arm/mach-omap/omap3_generic.c              |    2 +-
+ 2 files changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/arch/arm/mach-omap/include/mach/omap3-silicon.h b/arch/arm/mach-omap/include/mach/omap3-silicon.h
+index a655729..1921923 100644
+--- a/arch/arm/mach-omap/include/mach/omap3-silicon.h
++++ b/arch/arm/mach-omap/include/mach/omap3-silicon.h
+@@ -128,7 +128,6 @@
+ #define OMAP_SDRC_CS1		0xA0000000
+ 
+ /* PRM */
+-#define PRM_RSTCTRL_RESET       0x04
++#define OMAP3_PRM_RSTCTRL_RESET	0x04
+ 
+ #endif /* __ASM_ARCH_OMAP3_H */
+-
+diff --git a/arch/arm/mach-omap/omap3_generic.c b/arch/arm/mach-omap/omap3_generic.c
+index cbac06f..9932103 100644
+--- a/arch/arm/mach-omap/omap3_generic.c
++++ b/arch/arm/mach-omap/omap3_generic.c
+@@ -52,7 +52,7 @@
+  */
+ void __noreturn reset_cpu(unsigned long addr)
+ {
+-	writel(PRM_RSTCTRL_RESET, PRM_REG(RSTCTRL));
++	writel(OMAP3_PRM_RSTCTRL_RESET, PRM_REG(RSTCTRL));
+ 
+ 	while (1);
+ }

@@ -1,0 +1,216 @@
+From 2953b747bcb4ff46f1158909b9fc31caae3aa93e Mon Sep 17 00:00:00 2001
+From: Sascha Hauer <s.hauer@pengutronix.de>
+Date: Fri, 14 Dec 2012 09:43:30 +0100
+Subject: [PATCH] ARM omap3: Use device register functions in boards
+
+Signed-off-by: Sascha Hauer <s.hauer@pengutronix.de>
+---
+ arch/arm/boards/beagle/board.c          |   16 ++++------------
+ arch/arm/boards/omap343xdsp/board.c     |   11 ++---------
+ arch/arm/boards/omap3evm/board.c        |   23 +++++++----------------
+ arch/arm/boards/phycard-a-l1/pca-a-l1.c |   15 +++------------
+ 4 files changed, 16 insertions(+), 49 deletions(-)
+
+diff --git a/arch/arm/boards/beagle/board.c b/arch/arm/boards/beagle/board.c
+index f6d9d3f..6004566 100644
+--- a/arch/arm/boards/beagle/board.c
++++ b/arch/arm/boards/beagle/board.c
+@@ -64,6 +64,7 @@
+ #include <mach/gpmc.h>
+ #include <mach/gpmc_nand.h>
+ #include <mach/ehci.h>
++#include <mach/omap3-devices.h>
+ #include <i2c/i2c.h>
+ #include <linux/err.h>
+ #include <usb/ehci.h>
+@@ -234,11 +235,6 @@ pure_initcall(beagle_board_init);
+ 
+ #ifdef CONFIG_DRIVER_SERIAL_NS16550
+ 
+-static struct NS16550_plat serial_plat = {
+-	.clock = 48000000,      /* 48MHz (APLL96/2) */
+-	.shift = 2,
+-};
+-
+ /**
+  * @brief UART serial port initialization - remember to enable COM clocks in
+  * arch
+@@ -247,9 +243,7 @@ static struct NS16550_plat serial_plat = {
+  */
+ static int beagle_console_init(void)
+ {
+-	/* Register the serial port */
+-	add_ns16550_device(DEVICE_ID_DYNAMIC, OMAP_UART3_BASE, 1024, IORESOURCE_MEM_8BIT,
+-			   &serial_plat);
++	omap3_add_uart3();
+ 
+ 	return 0;
+ }
+@@ -295,8 +289,7 @@ mem_initcall(beagle_mem_init);
+ static int beagle_devices_init(void)
+ {
+ 	i2c_register_board_info(0, i2c_devices, ARRAY_SIZE(i2c_devices));
+-	add_generic_device("i2c-omap", DEVICE_ID_DYNAMIC, NULL, OMAP_I2C1_BASE, SZ_4K,
+-			   IORESOURCE_MEM, NULL);
++	omap3_add_i2c1(NULL);
+ 
+ #ifdef CONFIG_USB_EHCI_OMAP
+ 	if (ehci_omap_init(&omap_ehci_pdata) >= 0)
+@@ -309,8 +302,7 @@ static int beagle_devices_init(void)
+ #endif
+ 	omap_add_gpmc_nand_device(&nand_plat);
+ 
+-	add_generic_device("omap-hsmmc", DEVICE_ID_DYNAMIC, NULL, OMAP_MMC1_BASE, SZ_4K,
+-			   IORESOURCE_MEM, NULL);
++	omap3_add_mmc1(NULL);
+ 
+ 	armlinux_set_bootparams((void *)0x80000100);
+ 	armlinux_set_architecture(MACH_TYPE_OMAP3_BEAGLE);
+diff --git a/arch/arm/boards/omap343xdsp/board.c b/arch/arm/boards/omap343xdsp/board.c
+index fc50eb1..6de86f4 100644
+--- a/arch/arm/boards/omap343xdsp/board.c
++++ b/arch/arm/boards/omap343xdsp/board.c
+@@ -49,6 +49,7 @@
+ #include <ns16550.h>
+ #include <asm/armlinux.h>
+ #include <mach/omap3-silicon.h>
++#include <mach/omap3-devices.h>
+ #include <mach/sdrc.h>
+ #include <mach/sys_info.h>
+ #include <mach/syslib.h>
+@@ -602,12 +603,6 @@ static void mux_config(void)
+ /*-----------------------CONSOLE  Devices -----------------------------------*/
+ 
+ #ifdef CONFIG_DRIVER_SERIAL_NS16550
+-
+-static struct NS16550_plat serial_plat = {
+-	.clock = 48000000,	/* 48MHz (APLL96/2) */
+-	.shift = 2,
+-};
+-
+ /**
+  * @brief UART serial port initialization - remember to enable COM clocks in arch
+  *
+@@ -615,9 +610,7 @@ static struct NS16550_plat serial_plat = {
+  */
+ static int sdp3430_console_init(void)
+ {
+-	/* Register the serial port */
+-	add_ns16550_device(DEVICE_ID_DYNAMIC, OMAP_UART3_BASE, 1024, IORESOURCE_MEM_8BIT,
+-			   &serial_plat);
++	omap3_add_uart3();
+ 
+ 	return 0;
+ }
+diff --git a/arch/arm/boards/omap3evm/board.c b/arch/arm/boards/omap3evm/board.c
+index a5faf56..179450f 100644
+--- a/arch/arm/boards/omap3evm/board.c
++++ b/arch/arm/boards/omap3evm/board.c
+@@ -55,6 +55,7 @@
+ #include <mach/gpmc.h>
+ #include <errno.h>
+ #include <generated/mach-types.h>
++#include <mach/omap3-devices.h>
+ 
+ 
+ /*
+@@ -212,11 +213,6 @@ pure_initcall(omap3_evm_board_init);
+ 
+ #ifdef CONFIG_DRIVER_SERIAL_NS16550
+ 
+-static struct NS16550_plat serial_plat = {
+-	.clock		= 48000000,      /* 48MHz (APLL96/2) */
+-	.shift		= 2,
+-};
+-
+ /**
+  * @brief Initialize the serial port to be used as console.
+  *
+@@ -224,13 +220,10 @@ static struct NS16550_plat serial_plat = {
+  */
+ static int omap3evm_init_console(void)
+ {
+-	add_ns16550_device(DEVICE_ID_DYNAMIC,
+-#if defined(CONFIG_OMAP3EVM_UART1)
+-			OMAP_UART1_BASE,
+-#elif defined(CONFIG_OMAP3EVM_UART3)
+-			OMAP_UART3_BASE,
+-#endif
+-			1024, IORESOURCE_MEM_8BIT, &serial_plat);
++	if (IS_ENABLED(CONFIG_OMAP3EVM_UART1))
++		omap3_add_uart1();
++	if (IS_ENABLED(CONFIG_OMAP3EVM_UART3))
++		omap3_add_uart3();
+ 
+ 	return 0;
+ }
+@@ -253,10 +246,8 @@ static int omap3evm_init_devices(void)
+ 	 */
+ 	gpmc_generic_init(0x10);
+ #endif
+-#ifdef CONFIG_MCI_OMAP_HSMMC
+-	add_generic_device("omap-hsmmc", DEVICE_ID_DYNAMIC, NULL, OMAP_MMC1_BASE, SZ_4K,
+-				IORESOURCE_MEM, NULL);
+-#endif
++	omap3_add_mmc1(NULL);
++
+         armlinux_set_bootparams((void *)0x80000100);
+         armlinux_set_architecture(MACH_TYPE_OMAP3EVM);
+ 
+diff --git a/arch/arm/boards/phycard-a-l1/pca-a-l1.c b/arch/arm/boards/phycard-a-l1/pca-a-l1.c
+index c6a7e60..3b89631 100644
+--- a/arch/arm/boards/phycard-a-l1/pca-a-l1.c
++++ b/arch/arm/boards/phycard-a-l1/pca-a-l1.c
+@@ -61,6 +61,7 @@
+ #include <mach/omap3-silicon.h>
+ #include <mach/sys_info.h>
+ #include <mach/syslib.h>
++#include <mach/omap3-devices.h>
+ 
+ #define SMC911X_BASE 0x2c000000
+ 
+@@ -307,10 +308,6 @@ pure_initcall(pcaal1_board_init);
+ /*
+  * Run-time initialization(s)
+  */
+-static struct NS16550_plat serial_plat = {
+-	.clock	= 48000000,      /* 48MHz (APLL96/2) */
+-	.shift	= 2,
+-};
+ 
+ /**
+  * @brief Initialize the serial port to be used as console.
+@@ -319,8 +316,7 @@ static struct NS16550_plat serial_plat = {
+  */
+ static int pcaal1_init_console(void)
+ {
+-	add_ns16550_device(DEVICE_ID_DYNAMIC, OMAP_UART3_BASE, 1024, IORESOURCE_MEM_8BIT,
+-			   &serial_plat);
++	omap3_add_uart3();
+ 
+ 	return 0;
+ }
+@@ -377,11 +373,9 @@ static int pcaal1_mem_init(void)
+ }
+ mem_initcall(pcaal1_mem_init);
+ 
+-#ifdef CONFIG_MCI_OMAP_HSMMC
+ struct omap_hsmmc_platform_data pcaal1_hsmmc_plat = {
+ 	.f_max = 26000000,
+ };
+-#endif
+ 
+ static struct gpmc_nand_platform_data nand_plat = {
+ 	.device_width = 16,
+@@ -393,10 +387,7 @@ static int pcaal1_init_devices(void)
+ {
+ 	omap_add_gpmc_nand_device(&nand_plat);
+ 
+-#ifdef CONFIG_MCI_OMAP_HSMMC
+-	add_generic_device("omap-hsmmc", DEVICE_ID_DYNAMIC, NULL, OMAP_MMC1_BASE, SZ_4K,
+-			   IORESOURCE_MEM, &pcaal1_hsmmc_plat);
+-#endif
++	omap3_add_mmc1(&pcaal1_hsmmc_plat);
+ 
+ #ifdef CONFIG_DRIVER_NET_SMC911X
+ 	pcaal1_setup_net_chip();

@@ -1,0 +1,44 @@
+From 996bb4e789e5a0a3c5dcbdb82131af3cb7917d41 Mon Sep 17 00:00:00 2001
+From: Sascha Hauer <s.hauer@pengutronix.de>
+Date: Thu, 13 Dec 2012 17:30:42 +0100
+Subject: [PATCH] ARM omap4: make PRM defines SoC specific
+
+Signed-off-by: Sascha Hauer <s.hauer@pengutronix.de>
+---
+ arch/arm/mach-omap/include/mach/omap4-silicon.h |    8 ++++----
+ arch/arm/mach-omap/omap4_generic.c              |    2 +-
+ 2 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/arch/arm/mach-omap/include/mach/omap4-silicon.h b/arch/arm/mach-omap/include/mach/omap4-silicon.h
+index 127257d..0f0d88d 100644
+--- a/arch/arm/mach-omap/include/mach/omap4-silicon.h
++++ b/arch/arm/mach-omap/include/mach/omap4-silicon.h
+@@ -147,11 +147,11 @@
+  */
+ 
+ /* PRM */
+-#define PRM_BASE		0x4A306000
+-#define PRM_DEVICE_BASE		(PRM_BASE + 0x1B00)
++#define OMAP44XX_PRM_BASE		0x4A306000
++#define OMAP44XX_PRM_DEVICE_BASE	(OMAP44XX_PRM_BASE + 0x1B00)
+ 
+-#define PRM_RSTCTRL		PRM_DEVICE_BASE
+-#define PRM_RSTCTRL_RESET	0x01
++#define OMAP44XX_PRM_RSTCTRL		OMAP44XX_PRM_DEVICE_BASE
++#define OMAP44XX_PRM_RSTCTRL_RESET	0x01
+ 
+ /*
+  * Non-secure SRAM Addresses
+diff --git a/arch/arm/mach-omap/omap4_generic.c b/arch/arm/mach-omap/omap4_generic.c
+index 4653b17..f4841a6 100644
+--- a/arch/arm/mach-omap/omap4_generic.c
++++ b/arch/arm/mach-omap/omap4_generic.c
+@@ -36,7 +36,7 @@
+ 
+ void __noreturn reset_cpu(unsigned long addr)
+ {
+-	writel(PRM_RSTCTRL_RESET, PRM_RSTCTRL);
++	writel(OMAP44XX_PRM_RSTCTRL_RESET, OMAP44XX_PRM_RSTCTRL);
+ 
+ 	while (1);
+ }

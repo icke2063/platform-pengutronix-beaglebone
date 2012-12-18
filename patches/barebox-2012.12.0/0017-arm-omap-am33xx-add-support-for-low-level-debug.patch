@@ -1,0 +1,27 @@
+From c4ea518f14a8a9dd28fbf1d16544f3e15ac67c50 Mon Sep 17 00:00:00 2001
+From: Jan Luebbe <jlu@pengutronix.de>
+Date: Thu, 13 Dec 2012 17:30:47 +0100
+Subject: [PATCH] arm: omap: am33xx: add support for low level debug
+
+Signed-off-by: Jan Luebbe <jlu@pengutronix.de>
+Signed-off-by: Sascha Hauer <s.hauer@pengutronix.de>
+---
+ arch/arm/mach-omap/include/mach/debug_ll.h |    5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/arch/arm/mach-omap/include/mach/debug_ll.h b/arch/arm/mach-omap/include/mach/debug_ll.h
+index b2714c5..142f01a 100644
+--- a/arch/arm/mach-omap/include/mach/debug_ll.h
++++ b/arch/arm/mach-omap/include/mach/debug_ll.h
+@@ -35,6 +35,11 @@
+ #define UART_BASE	OMAP44XX_UART3_BASE
+ #endif
+ 
++#ifdef CONFIG_ARCH_AM33XX
++#include <mach/am33xx-silicon.h>
++#define UART_BASE	AM33XX_UART0_BASE
++#endif
++
+ #define LSR_THRE	0x20	/* Xmit holding register empty */
+ #define LSR		(5 << 2)
+ #define THR		(0 << 2)

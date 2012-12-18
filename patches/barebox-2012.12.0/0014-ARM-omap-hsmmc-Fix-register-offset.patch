@@ -1,0 +1,85 @@
+From ce48affb85601b440394e2268bec47e9e6c9e513 Mon Sep 17 00:00:00 2001
+From: Sascha Hauer <s.hauer@pengutronix.de>
+Date: Fri, 14 Dec 2012 10:29:36 +0100
+Subject: [PATCH] ARM omap hsmmc: Fix register offset
+
+The hsmmc module has a 0x100 offset in its register space. The real
+register space size for the module is 4K, so when we register the
+device with the size 4k, we have to account for the offset in the
+driver, not in the resource allocation.
+
+Signed-off-by: Sascha Hauer <s.hauer@pengutronix.de>
+---
+ arch/arm/mach-omap/include/mach/omap3-devices.h |    6 +++---
+ arch/arm/mach-omap/include/mach/omap4-silicon.h |   10 +++++-----
+ drivers/mci/omap_hsmmc.c                        |    4 +++-
+ 3 files changed, 11 insertions(+), 9 deletions(-)
+
+diff --git a/arch/arm/mach-omap/include/mach/omap3-devices.h b/arch/arm/mach-omap/include/mach/omap3-devices.h
+index dd6826a..555e86f 100644
+--- a/arch/arm/mach-omap/include/mach/omap3-devices.h
++++ b/arch/arm/mach-omap/include/mach/omap3-devices.h
+@@ -53,17 +53,17 @@ static inline struct device_d *omap3_add_uart3(void)
+ 
+ static inline struct device_d *omap3_add_mmc1(struct omap_hsmmc_platform_data *pdata)
+ {
+-	return omap_add_mmc(0, OMAP_MMC1_BASE + 0x100, pdata);
++	return omap_add_mmc(0, OMAP_MMC1_BASE, pdata);
+ }
+ 
+ static inline struct device_d *omap3_add_mmc2(struct omap_hsmmc_platform_data *pdata)
+ {
+-	return omap_add_mmc(1, OMAP_MMC2_BASE + 0x100, pdata);
++	return omap_add_mmc(1, OMAP_MMC2_BASE, pdata);
+ }
+ 
+ static inline struct device_d *omap3_add_mmc3(struct omap_hsmmc_platform_data *pdata)
+ {
+-	return omap_add_mmc(2, OMAP_MMC3_BASE + 0x100, pdata);
++	return omap_add_mmc(2, OMAP_MMC3_BASE, pdata);
+ }
+ 
+ static inline struct device_d *omap3_add_i2c1(void *pdata)
+diff --git a/arch/arm/mach-omap/include/mach/omap4-silicon.h b/arch/arm/mach-omap/include/mach/omap4-silicon.h
+index 5755856..b5d1eb9 100644
+--- a/arch/arm/mach-omap/include/mach/omap4-silicon.h
++++ b/arch/arm/mach-omap/include/mach/omap4-silicon.h
+@@ -95,11 +95,11 @@
+ #define OMAP44XX_32KTIMER_BASE		(OMAP44XX_L4_WKUP_BASE + 0x4000)
+ 
+ /* MMC */
+-#define OMAP44XX_MMC1_BASE		(OMAP44XX_L4_PER_BASE + 0x09C100)
+-#define OMAP44XX_MMC2_BASE		(OMAP44XX_L4_PER_BASE + 0x0B4100)
+-#define OMAP44XX_MMC3_BASE		(OMAP44XX_L4_PER_BASE + 0x0AD100)
+-#define OMAP44XX_MMC4_BASE		(OMAP44XX_L4_PER_BASE + 0x0D1100)
+-#define OMAP44XX_MMC5_BASE		(OMAP44XX_L4_PER_BASE + 0x0D5100)
++#define OMAP44XX_MMC1_BASE		(OMAP44XX_L4_PER_BASE + 0x09C000)
++#define OMAP44XX_MMC2_BASE		(OMAP44XX_L4_PER_BASE + 0x0B4000)
++#define OMAP44XX_MMC3_BASE		(OMAP44XX_L4_PER_BASE + 0x0AD000)
++#define OMAP44XX_MMC4_BASE		(OMAP44XX_L4_PER_BASE + 0x0D1000)
++#define OMAP44XX_MMC5_BASE		(OMAP44XX_L4_PER_BASE + 0x0D5000)
+ 
+ /* GPIO
+  *
+diff --git a/drivers/mci/omap_hsmmc.c b/drivers/mci/omap_hsmmc.c
+index d1e4c36..6471ea6 100644
+--- a/drivers/mci/omap_hsmmc.c
++++ b/drivers/mci/omap_hsmmc.c
+@@ -175,6 +175,7 @@ struct omap_hsmmc {
+ 	struct mci_host		mci;
+ 	struct device_d		*dev;
+ 	struct hsmmc		*base;
++	void __iomem		*iobase;
+ };
+ 
+ #define to_hsmmc(mci)	container_of(mci, struct omap_hsmmc, mci)
+@@ -575,7 +576,8 @@ static int omap_mmc_probe(struct device_d *dev)
+ 	hsmmc->mci.host_caps = MMC_MODE_4BIT | MMC_MODE_HS_52MHz | MMC_MODE_HS;
+ 	hsmmc->mci.hw_dev = dev;
+ 
+-	hsmmc->base = dev_request_mem_region(dev, 0);
++	hsmmc->iobase = dev_request_mem_region(dev, 0);
++	hsmmc->base = hsmmc->iobase + 0x100;
+ 
+ 	hsmmc->mci.voltages = MMC_VDD_32_33 | MMC_VDD_33_34;
+ 
