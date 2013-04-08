@@ -1,0 +1,55 @@
+From a88084a1d16c0d792be410f196d1e2e537c21d0c Mon Sep 17 00:00:00 2001
+From: Jan Luebbe <jluebbe@debian.org>
+Date: Sat, 30 Mar 2013 21:20:09 +0100
+Subject: [PATCH 2/8] beaglebone: fix booting
+
+Signed-off-by: Jan Luebbe <jlu@pengutronix.de>
+---
+ arch/arm/boards/beaglebone/lowlevel.c | 14 ++++++++++++--
+ 1 file changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm/boards/beaglebone/lowlevel.c b/arch/arm/boards/beaglebone/lowlevel.c
+index 76ac90b..229968e 100644
+--- a/arch/arm/boards/beaglebone/lowlevel.c
++++ b/arch/arm/boards/beaglebone/lowlevel.c
+@@ -1,6 +1,7 @@
+ #include <init.h>
+ #include <sizes.h>
+ #include <io.h>
++#include <asm/armlinux.h>
+ #include <asm/barebox-arm-head.h>
+ #include <asm/barebox-arm.h>
+ #include <mach/am33xx-silicon.h>
+@@ -201,6 +202,9 @@ void beaglebone_sram_init(void)
+ 
+ 	beaglebone_config_ddr();
+ 
++	/* Enable pin mux */
++	enable_uart0_pin_mux();
++
+ 	/* UART softreset */
+ 	uart_base = AM33XX_UART0_BASE;
+ 
+@@ -242,11 +246,17 @@ static int beaglebone_board_init(void)
+ 	if (!in_sdram)
+ 		beaglebone_sram_init();
+ 
+-	/* Enable pin mux */
+-	enable_uart0_pin_mux();
++	return 0;
++}
++
++static int beaglebone_sram_mem_init(void)
++{
++	if (!running_in_sdram())
++		arm_add_mem_device("sram", 0x402F0400, 0x4030CE00-0x402F0400);
+ 
+ 	return 0;
+ }
++mem_initcall(beaglebone_sram_mem_init);
+ 
+ void __naked barebox_arm_reset_vector(void)
+ {
+-- 
+1.8.2.rc2
+

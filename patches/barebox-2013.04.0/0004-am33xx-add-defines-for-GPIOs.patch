@@ -1,0 +1,45 @@
+From 7d2dfe2ceead859a63404199799bb765873de4cb Mon Sep 17 00:00:00 2001
+From: Jan Luebbe <jlu@pengutronix.de>
+Date: Sun, 31 Mar 2013 01:54:28 +0100
+Subject: [PATCH 4/8] am33xx: add defines for GPIOs
+
+Signed-off-by: Jan Luebbe <jlu@pengutronix.de>
+---
+ arch/arm/mach-omap/include/mach/am33xx-clock.h   | 2 ++
+ arch/arm/mach-omap/include/mach/am33xx-silicon.h | 6 ++++++
+ 2 files changed, 8 insertions(+)
+
+diff --git a/arch/arm/mach-omap/include/mach/am33xx-clock.h b/arch/arm/mach-omap/include/mach/am33xx-clock.h
+index 39c107f..cbee641 100644
+--- a/arch/arm/mach-omap/include/mach/am33xx-clock.h
++++ b/arch/arm/mach-omap/include/mach/am33xx-clock.h
+@@ -139,7 +139,9 @@
+ #define CM_PER_CPGMAC0_CLKCTRL          (CM_PER + 0x14) /* Ethernet */
+ #define CM_PER_CPSW_CLKSTCTRL           (CM_PER + 0x144)/* Ethernet */
+ #define CM_PER_OCMCRAM_CLKCTRL          (CM_PER + 0x2C) /* OCMC RAM */
++#define CM_PER_GPIO1_CLKCTRL            (CM_PER + 0xAC) /* GPIO1 */
+ #define CM_PER_GPIO2_CLKCTRL            (CM_PER + 0xB0) /* GPIO2 */
++#define CM_PER_GPIO3_CLKCTRL            (CM_PER + 0xB4) /* GPIO3 */
+ #define CM_PER_UART3_CLKCTRL            (CM_PER + 0x74) /* UART3 */
+ #define CM_PER_I2C1_CLKCTRL             (CM_PER + 0x48) /* I2C1 */
+ #define CM_PER_I2C2_CLKCTRL             (CM_PER + 0x44) /* I2C2 */
+diff --git a/arch/arm/mach-omap/include/mach/am33xx-silicon.h b/arch/arm/mach-omap/include/mach/am33xx-silicon.h
+index e69d345..9edf4ca 100644
+--- a/arch/arm/mach-omap/include/mach/am33xx-silicon.h
++++ b/arch/arm/mach-omap/include/mach/am33xx-silicon.h
+@@ -29,6 +29,12 @@
+ #define AM33XX_UART1_BASE		(AM33XX_L4_PER_BASE + 0x22000)
+ #define AM33XX_UART2_BASE		(AM33XX_L4_PER_BASE + 0x24000)
+ 
++/* GPIO */
++#define AM33XX_GPIO0_BASE		(AM33XX_L4_WKUP_BASE + 0x207000 + 0x100)
++#define AM33XX_GPIO1_BASE		(AM33XX_L4_PER_BASE + 0x4C000 + 0x100)
++#define AM33XX_GPIO2_BASE		(AM33XX_L4_PER_BASE + 0x1AC000 + 0x100)
++#define AM33XX_GPIO3_BASE		(AM33XX_L4_PER_BASE + 0x1AE000 + 0x100)
++
+ /* EMFI Registers */
+ #define AM33XX_EMFI0_BASE		0x4C000000
+ 
+-- 
+1.8.2.rc2
+

@@ -1,0 +1,60 @@
+From 8d2caf59e024d664d3c06757d727aecfb618b74e Mon Sep 17 00:00:00 2001
+From: Jan Luebbe <jlu@pengutronix.de>
+Date: Sun, 31 Mar 2013 12:27:14 +0200
+Subject: [PATCH 6/8] beaglebone: enable i2c
+
+Signed-off-by: Jan Luebbe <jlu@pengutronix.de>
+---
+ arch/arm/boards/beaglebone/board.c | 20 +++++++++++++++++++-
+ 1 file changed, 19 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm/boards/beaglebone/board.c b/arch/arm/boards/beaglebone/board.c
+index e4b8b0a..42dbebf 100644
+--- a/arch/arm/boards/beaglebone/board.c
++++ b/arch/arm/boards/beaglebone/board.c
+@@ -42,6 +42,7 @@
+ #include <mach/gpmc.h>
+ #include <mach/ehci.h>
+ #include <i2c/i2c.h>
++#include <i2c/i2c-gpio.h>
+ #include <linux/err.h>
+ #include <linux/phy.h>
+ #include <usb/ehci.h>
+@@ -100,16 +101,33 @@ static void beaglebone_eth_init(void)
+ 	am33xx_add_cpsw(&cpsw_data);
+ }
+ 
++static struct i2c_board_info i2c_devices[] = {
++	{
++		I2C_BOARD_INFO("24c256", 0x50)
++	},
++};
++
++static struct i2c_gpio_platform_data i2c_gpio_data = {
++	.sda_pin		= 32*3 + 5,
++	.sda_is_open_drain	= 0,
++	.scl_pin		= 32*3 + 6,
++	.scl_is_open_drain	= 0,
++	.udelay			= 5,		/* ~100 kHz */
++};
++
+ static int beaglebone_devices_init(void)
+ {
+ 	am33xx_add_mmc0(NULL);
+ 
+-	enable_i2c0_pin_mux();
+ 	beaglebone_eth_init();
+ 
+ 	armlinux_set_bootparams((void *)0x80000100);
+ 	armlinux_set_architecture(MACH_TYPE_BEAGLEBONE);
+ 
++	enable_i2c0_pin_mux_gpio();
++	i2c_register_board_info(0, i2c_devices, ARRAY_SIZE(i2c_devices));
++	add_generic_device_res("i2c-gpio", 0, NULL, 0, &i2c_gpio_data);
++
+ 	return 0;
+ }
+ device_initcall(beaglebone_devices_init);
+-- 
+1.8.2.rc2
+

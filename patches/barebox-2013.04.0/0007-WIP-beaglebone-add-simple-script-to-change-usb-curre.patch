@@ -1,0 +1,32 @@
+From ff05523fb89a2b50e670d40e00301ea4dc62515a Mon Sep 17 00:00:00 2001
+From: Jan Luebbe <jlu@pengutronix.de>
+Date: Sun, 31 Mar 2013 12:28:01 +0200
+Subject: [PATCH 7/8] WIP: beaglebone: add simple script to change usb current
+ limit
+
+Signed-off-by: Jan Luebbe <jlu@pengutronix.de>
+---
+ arch/arm/boards/beaglebone/env/init/usb-limit-1300 | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+ create mode 100644 arch/arm/boards/beaglebone/env/init/usb-limit-1300
+
+diff --git a/arch/arm/boards/beaglebone/env/init/usb-limit-1300 b/arch/arm/boards/beaglebone/env/init/usb-limit-1300
+new file mode 100644
+index 0000000..b5a97eb
+--- /dev/null
++++ b/arch/arm/boards/beaglebone/env/init/usb-limit-1300
+@@ -0,0 +1,11 @@
++#!/bin/sh
++
++ENABLED=0
++
++if [ $ENABLED -eq 0 ]; then
++	echo "edit /env/init/usb-limit-1300 to change the USB current limit"
++else
++	echo -n "changing USB current limit to 1300 mA... "
++	i2c_write -b 0 -a 0x24 -r 0x01 0x3e
++	echo "done"
++fi
+-- 
+1.8.2.rc2
+

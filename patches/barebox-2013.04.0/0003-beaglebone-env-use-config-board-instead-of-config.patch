@@ -1,0 +1,56 @@
+From 6e87252630465a45259599cfef0c4e245220e3ba Mon Sep 17 00:00:00 2001
+From: Jan Luebbe <jlu@pengutronix.de>
+Date: Mon, 8 Apr 2013 18:05:35 +0200
+Subject: [PATCH 3/8] beaglebone: env: use config-board instead of config
+
+Signed-off-by: Jan Luebbe <jlu@pengutronix.de>
+---
+ arch/arm/boards/beaglebone/env/config       | 21 ---------------------
+ arch/arm/boards/beaglebone/env/config-board |  7 +++++++
+ 2 files changed, 7 insertions(+), 21 deletions(-)
+ delete mode 100644 arch/arm/boards/beaglebone/env/config
+ create mode 100644 arch/arm/boards/beaglebone/env/config-board
+
+diff --git a/arch/arm/boards/beaglebone/env/config b/arch/arm/boards/beaglebone/env/config
+deleted file mode 100644
+index 4b7a635..0000000
+--- a/arch/arm/boards/beaglebone/env/config
++++ /dev/null
+@@ -1,21 +0,0 @@
+-#!/bin/sh
+-
+-# change network settings in /env/network/eth0
+-# change mtd partition settings and automountpoints in /env/init/*
+-
+-global.hostname=beaglebone
+-
+-# set to false if you do not want to have colors
+-global.allow_color=true
+-
+-# user (used for network filenames)
+-global.user=none
+-
+-# timeout in seconds before the default boot entry is started
+-global.autoboot_timeout=3
+-
+-# default boot entry (one of /env/boot/*)
+-global.boot.default=sd
+-
+-# base bootargs
+-global.linux.bootargs.base="console=ttyO0,115200n8"
+diff --git a/arch/arm/boards/beaglebone/env/config-board b/arch/arm/boards/beaglebone/env/config-board
+new file mode 100644
+index 0000000..f9a2db7
+--- /dev/null
++++ b/arch/arm/boards/beaglebone/env/config-board
+@@ -0,0 +1,7 @@
++#!/bin/sh
++
++# board defaults, do not change in running system. Change /env/config
++# instead
++
++global.hostname=beaglebone
++global.linux.bootargs.base="console=ttyO0,115200n8"
+-- 
+1.8.2.rc2
+

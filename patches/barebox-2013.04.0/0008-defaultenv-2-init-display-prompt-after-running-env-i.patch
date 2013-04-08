@@ -1,0 +1,47 @@
+From 376025ea1243bd1c81f51b0c37cea30507ef3098 Mon Sep 17 00:00:00 2001
+From: Jan Luebbe <jlu@pengutronix.de>
+Date: Mon, 8 Apr 2013 18:03:21 +0200
+Subject: [PATCH 8/8] defaultenv-2: init: display prompt after running
+ /env/init/*
+
+This allows init scripts to print messages to the console without messing
+up the timeout prompt.
+
+Signed-off-by: Jan Luebbe <jlu@pengutronix.de>
+---
+ defaultenv-2/base/bin/init | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/defaultenv-2/base/bin/init b/defaultenv-2/base/bin/init
+index e4a7fee..a47ca47 100644
+--- a/defaultenv-2/base/bin/init
++++ b/defaultenv-2/base/bin/init
+@@ -16,12 +16,6 @@ global editcmd=sedit
+ /env/config-board
+ /env/config
+ 
+-if [ -e /env/menu ]; then
+-	echo -e -n "\nHit m for menu or any other key to stop autoboot: "
+-else
+-	echo -e -n "\nHit any key to stop autoboot: "
+-fi
+-
+ # allow to stop the boot before execute the /env/init/*
+ # but without waiting
+ timeout -s -a -v key 0
+@@ -34,6 +28,12 @@ for i in /env/init/*; do
+ 	. $i
+ done
+ 
++if [ -e /env/menu ]; then
++	echo -e -n "\nHit m for menu or any other key to stop autoboot: "
++else
++	echo -e -n "\nHit any key to stop autoboot: "
++fi
++
+ timeout -a $global.autoboot_timeout -v key
+ autoboot="$?"
+ 
+-- 
+1.8.2.rc2
+
