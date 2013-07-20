@@ -1,8 +1,0 @@
-0001-arm-start-improve-memory-layout-calculation.patch
-0002-beaglebone-fix-booting.patch
-0003-beaglebone-env-use-config-board-instead-of-config.patch
-0004-am33xx-add-defines-for-GPIOs.patch
-0005-WIP-GPIO-for-am33xx.patch
-0006-beaglebone-enable-i2c.patch
-0007-WIP-beaglebone-add-simple-script-to-change-usb-curre.patch
-0008-defaultenv-2-init-display-prompt-after-running-env-i.patch

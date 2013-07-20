@@ -1,0 +1,29 @@
+From 8544d430c081371152796a0de45fa8edef1bf594 Mon Sep 17 00:00:00 2001
+From: Jan Luebbe <jlu@pengutronix.de>
+Date: Tue, 28 May 2013 09:43:29 +0200
+Subject: [PATCH 01/17] scripts: genenv: remove empty files from tempdir
+
+This allows leaving out default files from the environment by overriding
+them with empty files in the board or BSP.
+
+Signed-off-by: Jan Luebbe <jlu@pengutronix.de>
+---
+ scripts/genenv |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/scripts/genenv b/scripts/genenv
+index 374db6d..3e91062 100755
+--- a/scripts/genenv
++++ b/scripts/genenv
+@@ -24,7 +24,7 @@ for i in $*; do
+ done
+ )
+ 
+-find $tempdir -name '.svn' -o -name '*~' | xargs --no-run-if-empty rm -r
++find $tempdir -name '.svn' -o -name '*~' -o -size 0 | xargs --no-run-if-empty rm -r
+ 
+ $objtree/scripts/bareboxenv -s $tempdir $target
+ 
+-- 
+1.7.10.4
+

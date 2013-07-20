@@ -1,0 +1,41 @@
+From af8dbd7d41f9a57791b2bd04c277728ad3ea5138 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Teresa=20G=C3=A1mez?= <t.gamez@phytec.de>
+Date: Tue, 9 Jul 2013 11:23:13 +0200
+Subject: [PATCH 07/17] ARM: AM33xx: Add gpio support
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Register GPIO banks for AM33xx boards.
+
+Signed-off-by: Teresa Gámez <t.gamez@phytec.de>
+Signed-off-by: Sascha Hauer <s.hauer@pengutronix.de>
+---
+ arch/arm/mach-omap/am33xx_generic.c |   14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/arch/arm/mach-omap/am33xx_generic.c b/arch/arm/mach-omap/am33xx_generic.c
+index 96432c9..3ab16b0 100644
+--- a/arch/arm/mach-omap/am33xx_generic.c
++++ b/arch/arm/mach-omap/am33xx_generic.c
+@@ -126,3 +126,17 @@ int am33xx_register_ethaddr(int eth_id, int mac_id)
+ 
+ 	return -ENODEV;
+ }
++
++static int am33xx_gpio_init(void)
++{
++	add_generic_device("omap-gpio", 0, NULL, AM33XX_GPIO0_BASE,
++				0xf00, IORESOURCE_MEM, NULL);
++	add_generic_device("omap-gpio", 1, NULL, AM33XX_GPIO1_BASE,
++				0xf00, IORESOURCE_MEM, NULL);
++	add_generic_device("omap-gpio", 2, NULL, AM33XX_GPIO2_BASE,
++				0xf00, IORESOURCE_MEM, NULL);
++	add_generic_device("omap-gpio", 3, NULL, AM33XX_GPIO3_BASE,
++				0xf00, IORESOURCE_MEM, NULL);
++	return 0;
++}
++coredevice_initcall(am33xx_gpio_init);
+-- 
+1.7.10.4
+

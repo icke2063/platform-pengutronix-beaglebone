@@ -1,0 +1,113 @@
+From 6e2126a736cb0aea390a941bbb1e735fab045def Mon Sep 17 00:00:00 2001
+From: Jan Luebbe <jlu@pengutronix.de>
+Date: Sun, 14 Jul 2013 16:42:46 +0200
+Subject: [PATCH 15/17] am33xx: implement cpu revision decoding
+
+Signed-off-by: Jan Luebbe <jlu@pengutronix.de>
+---
+ arch/arm/mach-omap/am33xx_generic.c              |   34 +++++++++++++++++++++-
+ arch/arm/mach-omap/include/mach/am33xx-silicon.h |    1 +
+ arch/arm/mach-omap/include/mach/sys_info.h       |   10 +++++--
+ 3 files changed, 42 insertions(+), 3 deletions(-)
+
+diff --git a/arch/arm/mach-omap/am33xx_generic.c b/arch/arm/mach-omap/am33xx_generic.c
+index 45fefb4..18661d7 100644
+--- a/arch/arm/mach-omap/am33xx_generic.c
++++ b/arch/arm/mach-omap/am33xx_generic.c
+@@ -1,6 +1,6 @@
+ /*
+  * (C) Copyright 2012 Teresa Gámez, Phytec Messtechnik GmbH
+- * (C) Copyright 2012 Jan Luebbe <j.luebbe@pengutronix.de>
++ * (C) Copyright 2012-2013 Jan Luebbe <j.luebbe@pengutronix.de>
+  *
+  * This program is free software; you can redistribute it and/or
+  * modify it under the terms of the GNU General Public License as
+@@ -37,6 +37,38 @@ void __noreturn reset_cpu(unsigned long addr)
+ }
+ 
+ /**
++ * @brief Extract the AM33xx ES revision
++ *
++ * The significance of the CPU revision depends upon the cpu type.
++ * Latest known revision is considered default.
++ *
++ * @return silicon version
++ */
++u32 get_cpu_rev(void)
++{
++	u32 version, retval;
++
++	version = (readl(AM33XX_IDCODE_REG) >> 28) & 0xF;
++
++	switch (version) {
++	case 0:
++		retval = AM335X_ES1_0;
++		break;
++	case 1:
++		retval = AM335X_ES2_0;
++		break;
++	case 2:
++		/*
++		 * Fall through the default case.
++		 */
++	default:
++		retval = AM335X_ES2_1;
++	}
++
++	return retval;
++}
++
++/**
+  * @brief Get the upper address of current execution
+  *
+  * we can use this to figure out if we are running in SRAM /
+diff --git a/arch/arm/mach-omap/include/mach/am33xx-silicon.h b/arch/arm/mach-omap/include/mach/am33xx-silicon.h
+index 9cf3e73..06035c4 100644
+--- a/arch/arm/mach-omap/include/mach/am33xx-silicon.h
++++ b/arch/arm/mach-omap/include/mach/am33xx-silicon.h
+@@ -65,6 +65,7 @@
+ 
+ /* CTRL */
+ #define AM33XX_CTRL_BASE		(AM33XX_L4_WKUP_BASE + 0x210000)
++#define AM33XX_IDCODE_REG		(AM33XX_CTRL_BASE + 0x600)
+ 
+ /* Watchdog Timer */
+ #define AM33XX_WDT_BASE			0x44E35000
+diff --git a/arch/arm/mach-omap/include/mach/sys_info.h b/arch/arm/mach-omap/include/mach/sys_info.h
+index 4d9b138..fce5895 100644
+--- a/arch/arm/mach-omap/include/mach/sys_info.h
++++ b/arch/arm/mach-omap/include/mach/sys_info.h
+@@ -40,6 +40,7 @@
+ #define CPU_1710	0x1710
+ #define CPU_2420	0x2420
+ #define CPU_2430	0x2430
++#define CPU_3350	0x3350
+ #define CPU_3430	0x3430
+ #define CPU_3630	0x3630
+ 
+@@ -54,6 +55,10 @@
+ #define OMAP34XX_ES3		cpu_revision(CPU_3430, 3)
+ #define OMAP34XX_ES3_1		cpu_revision(CPU_3430, 4)
+ 
++#define AM335X_ES1_0		cpu_revision(CPU_3350, 0)
++#define AM335X_ES2_0		cpu_revision(CPU_3350, 1)
++#define AM335X_ES2_1		cpu_revision(CPU_3350, 2)
++
+ #define OMAP36XX_ES1		cpu_revision(CPU_3630, 0)
+ #define OMAP36XX_ES1_1		cpu_revision(CPU_3630, 1)
+ #define OMAP36XX_ES1_2		cpu_revision(CPU_3630, 2)
+@@ -76,8 +81,9 @@
+ /**
+  * Hawkeye definitions to identify silicon families
+  */
+-#define OMAP_HAWKEYE_34XX	0xB7AE
+-#define OMAP_HAWKEYE_36XX	0xB891
++#define OMAP_HAWKEYE_34XX	0xB7AE /* OMAP34xx */
++#define OMAP_HAWKEYE_36XX	0xB891 /* OMAP36xx */
++#define OMAP_HAWKEYE_335X	0xB944 /* AM335x */
+ 
+ /** These are implemented by the System specific code in omapX-generic.c */
+ u32 get_cpu_type(void);
+-- 
+1.7.10.4
+

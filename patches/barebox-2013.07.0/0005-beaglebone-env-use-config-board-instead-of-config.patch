@@ -1,12 +1,12 @@
-From 6e87252630465a45259599cfef0c4e245220e3ba Mon Sep 17 00:00:00 2001
+From d4a3d4e53d37d64a7c2490b103356b18cf0999be Mon Sep 17 00:00:00 2001
 From: Jan Luebbe <jlu@pengutronix.de>
 Date: Mon, 8 Apr 2013 18:05:35 +0200
-Subject: [PATCH 3/8] beaglebone: env: use config-board instead of config
+Subject: [PATCH 05/17] beaglebone: env: use config-board instead of config
 
 Signed-off-by: Jan Luebbe <jlu@pengutronix.de>
 ---
- arch/arm/boards/beaglebone/env/config       | 21 ---------------------
- arch/arm/boards/beaglebone/env/config-board |  7 +++++++
+ arch/arm/boards/beaglebone/env/config       |   21 ---------------------
+ arch/arm/boards/beaglebone/env/config-board |    7 +++++++
  2 files changed, 7 insertions(+), 21 deletions(-)
  delete mode 100644 arch/arm/boards/beaglebone/env/config
  create mode 100644 arch/arm/boards/beaglebone/env/config-board
@@ -52,5 +52,5 @@ index 0000000..f9a2db7
 +global.hostname=beaglebone
 +global.linux.bootargs.base="console=ttyO0,115200n8"
 -- 
-1.8.2.rc2
+1.7.10.4
 

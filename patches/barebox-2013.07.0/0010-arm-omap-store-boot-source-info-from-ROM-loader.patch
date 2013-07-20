@@ -1,0 +1,481 @@
+From 989eded334449152f1a3a162dd20939a7c9de388 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Teresa=20G=C3=A1mez?= <t.gamez@phytec.de>
+Date: Tue, 9 Jul 2013 11:23:20 +0200
+Subject: [PATCH 10/17] arm: omap: store boot source info from ROM loader
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The ROM loader passes the address of a buffer to the MLO in
+register 0. Store this data so we can find the boot source later.
+On the same way the bootinformation are passed to the barebox,
+then. It has to be enshured that r0 contains always the
+buffer or the boot source detection will not work.
+
+Applied this on all OMAPs. This patch is based on work of
+Jan Luebbe <jlu@pengutronix.de>.
+
+Compile tested on all OMAP boards.
+Tested on pcm049, phyCARD-A-L1 and pcm051.
+
+Signed-off-by: Teresa Gámez <t.gamez@phytec.de>
+Tested-by: Christoph Fritz <chf.fritz@googlemail.com>
+Signed-off-by: Sascha Hauer <s.hauer@pengutronix.de>
+---
+ arch/arm/boards/archosg9/lowlevel.c       |    5 ++++-
+ arch/arm/boards/beagle/lowlevel.c         |    6 +++++-
+ arch/arm/boards/beaglebone/lowlevel.c     |    5 ++++-
+ arch/arm/boards/omap343xdsp/lowlevel.c    |    6 +++++-
+ arch/arm/boards/omap3evm/lowlevel.c       |    5 ++++-
+ arch/arm/boards/panda/lowlevel.c          |    6 +++++-
+ arch/arm/boards/pcm049/lowlevel.c         |    6 +++++-
+ arch/arm/boards/phycard-a-l1/lowlevel.c   |    5 ++++-
+ arch/arm/boards/phycard-a-xl2/lowlevel.c  |    6 +++++-
+ arch/arm/mach-omap/Makefile               |    4 ++--
+ arch/arm/mach-omap/am33xx_generic.c       |   18 +++++++++++++++++-
+ arch/arm/mach-omap/include/mach/generic.h |    3 +++
+ arch/arm/mach-omap/omap3_generic.c        |   16 +++++++++++++---
+ arch/arm/mach-omap/omap4_generic.c        |   18 +++++++++++++-----
+ arch/arm/mach-omap/omap_bootinfo.S        |   25 +++++++++++++++++++++++++
+ arch/arm/mach-omap/xload.c                |    8 ++++++--
+ 16 files changed, 120 insertions(+), 22 deletions(-)
+ create mode 100644 arch/arm/mach-omap/omap_bootinfo.S
+
+diff --git a/arch/arm/boards/archosg9/lowlevel.c b/arch/arm/boards/archosg9/lowlevel.c
+index 0334693..d443a60 100644
+--- a/arch/arm/boards/archosg9/lowlevel.c
++++ b/arch/arm/boards/archosg9/lowlevel.c
+@@ -14,6 +14,7 @@
+ #include <io.h>
+ #include <init.h>
+ #include <sizes.h>
++#include <mach/generic.h>
+ #include <mach/omap4-mux.h>
+ #include <mach/omap4-silicon.h>
+ #include <mach/omap4-clock.h>
+@@ -65,8 +66,10 @@ static noinline void archosg9_init_lowlevel(void)
+ 	omap4_ddr_init(&ddr_regs_400_mhz_2cs, &core);
+ }
+ 
+-void __naked __bare_init barebox_arm_reset_vector(void)
++void __naked __bare_init barebox_arm_reset_vector(uint32_t *data)
+ {
++	omap_save_bootinfo();
++
+ 	arm_cpu_lowlevel_init();
+ 
+ 	if (get_pc() > 0x80000000)
+diff --git a/arch/arm/boards/beagle/lowlevel.c b/arch/arm/boards/beagle/lowlevel.c
+index d0fd066..ef7e3c0 100644
+--- a/arch/arm/boards/beagle/lowlevel.c
++++ b/arch/arm/boards/beagle/lowlevel.c
+@@ -1,8 +1,10 @@
++#include <init.h>
+ #include <io.h>
+ #include <sizes.h>
+ #include <asm/barebox-arm-head.h>
+ #include <asm/barebox-arm.h>
+ #include <mach/control.h>
++#include <mach/generic.h>
+ #include <mach/omap3-silicon.h>
+ #include <mach/omap3-mux.h>
+ #include <mach/sdrc.h>
+@@ -178,8 +180,10 @@ static int beagle_board_init(void)
+ 	return 0;
+ }
+ 
+-void __naked barebox_arm_reset_vector(void)
++void __naked  __bare_init barebox_arm_reset_vector(uint32_t *data)
+ {
++	omap_save_bootinfo();
++
+ 	arm_cpu_lowlevel_init();
+ 
+ 	beagle_board_init();
+diff --git a/arch/arm/boards/beaglebone/lowlevel.c b/arch/arm/boards/beaglebone/lowlevel.c
+index ebbd960..59d9ff1 100644
+--- a/arch/arm/boards/beaglebone/lowlevel.c
++++ b/arch/arm/boards/beaglebone/lowlevel.c
+@@ -6,6 +6,7 @@
+ #include <asm/barebox-arm.h>
+ #include <mach/am33xx-silicon.h>
+ #include <mach/am33xx-clock.h>
++#include <mach/generic.h>
+ #include <mach/sdrc.h>
+ #include <mach/sys_info.h>
+ #include <mach/syslib.h>
+@@ -258,8 +259,10 @@ static int beaglebone_sram_mem_init(void)
+ }
+ mem_initcall(beaglebone_sram_mem_init);
+ 
+-void __bare_init __naked barebox_arm_reset_vector(void)
++void __bare_init __naked barebox_arm_reset_vector(uint32_t *data)
+ {
++	omap_save_bootinfo();
++
+ 	arm_cpu_lowlevel_init();
+ 
+ 	beaglebone_board_init();
+diff --git a/arch/arm/boards/omap343xdsp/lowlevel.c b/arch/arm/boards/omap343xdsp/lowlevel.c
+index ed675ad..61b7f99 100644
+--- a/arch/arm/boards/omap343xdsp/lowlevel.c
++++ b/arch/arm/boards/omap343xdsp/lowlevel.c
+@@ -1,8 +1,10 @@
+ #include <common.h>
++#include <init.h>
+ #include <io.h>
+ #include <sizes.h>
+ #include <asm/barebox-arm-head.h>
+ #include <asm/barebox-arm.h>
++#include <mach/generic.h>
+ #include <mach/omap3-mux.h>
+ #include <mach/sdrc.h>
+ #include <mach/control.h>
+@@ -545,8 +547,10 @@ static int sdp343x_board_init(void)
+ 	return 0;
+ }
+ 
+-void __naked barebox_arm_reset_vector(void)
++void __naked __bare_init barebox_arm_reset_vector(uint32_t *data)
+ {
++	omap_save_bootinfo();
++
+ 	arm_cpu_lowlevel_init();
+ 
+ 	sdp343x_board_init();
+diff --git a/arch/arm/boards/omap3evm/lowlevel.c b/arch/arm/boards/omap3evm/lowlevel.c
+index 2d9e130..ea92835 100644
+--- a/arch/arm/boards/omap3evm/lowlevel.c
++++ b/arch/arm/boards/omap3evm/lowlevel.c
+@@ -3,6 +3,7 @@
+ #include <sizes.h>
+ #include <asm/barebox-arm-head.h>
+ #include <asm/barebox-arm.h>
++#include <mach/generic.h>
+ #include <mach/omap3-mux.h>
+ #include <mach/sdrc.h>
+ #include <mach/control.h>
+@@ -159,8 +160,10 @@ static int omap3_evm_board_init(void)
+ 	return 0;
+ }
+ 
+-void __naked barebox_arm_reset_vector(void)
++void __naked __bare_init barebox_arm_reset_vector(uint32_t *data)
+ {
++	omap_save_bootinfo();
++
+ 	arm_cpu_lowlevel_init();
+ 
+ 	omap3_evm_board_init();
+diff --git a/arch/arm/boards/panda/lowlevel.c b/arch/arm/boards/panda/lowlevel.c
+index ed1dc6f..76ef83b 100644
+--- a/arch/arm/boards/panda/lowlevel.c
++++ b/arch/arm/boards/panda/lowlevel.c
+@@ -17,8 +17,10 @@
+  *
+  */
+ #include <common.h>
++#include <init.h>
+ #include <io.h>
+ #include <sizes.h>
++#include <mach/generic.h>
+ #include <mach/omap4-mux.h>
+ #include <mach/omap4-silicon.h>
+ #include <mach/omap4-clock.h>
+@@ -73,8 +75,10 @@ static void noinline panda_init_lowlevel(void)
+ 	omap4_scale_vcores(TPS62361_VSEL0_GPIO);
+ }
+ 
+-void barebox_arm_reset_vector(void)
++void __bare_init __naked barebox_arm_reset_vector(uint32_t *data)
+ {
++	omap_save_bootinfo();
++
+ 	arm_cpu_lowlevel_init();
+ 
+ 	if (get_pc() > 0x80000000)
+diff --git a/arch/arm/boards/pcm049/lowlevel.c b/arch/arm/boards/pcm049/lowlevel.c
+index 8bcecb1..e409ad8 100644
+--- a/arch/arm/boards/pcm049/lowlevel.c
++++ b/arch/arm/boards/pcm049/lowlevel.c
+@@ -17,8 +17,10 @@
+  *
+  */
+ #include <common.h>
++#include <init.h>
+ #include <io.h>
+ #include <sizes.h>
++#include <mach/generic.h>
+ #include <mach/omap4-mux.h>
+ #include <mach/omap4-silicon.h>
+ #include <mach/omap4-clock.h>
+@@ -102,8 +104,10 @@ static void noinline pcm049_init_lowlevel(void)
+ 	sr32(OMAP44XX_SCRM_ALTCLKSRC, 2, 2, 0x3);  /* enable clocks */
+ }
+ 
+-void barebox_arm_reset_vector(void)
++void __bare_init __naked barebox_arm_reset_vector(uint32_t *data)
+ {
++	omap_save_bootinfo();
++
+ 	arm_cpu_lowlevel_init();
+ 
+ 	if (get_pc() > 0x80000000)
+diff --git a/arch/arm/boards/phycard-a-l1/lowlevel.c b/arch/arm/boards/phycard-a-l1/lowlevel.c
+index 30379d8..7855040 100644
+--- a/arch/arm/boards/phycard-a-l1/lowlevel.c
++++ b/arch/arm/boards/phycard-a-l1/lowlevel.c
+@@ -5,6 +5,7 @@
+ #include <asm/barebox-arm-head.h>
+ #include <asm/barebox-arm.h>
+ #include <mach/omap3-mux.h>
++#include <mach/generic.h>
+ #include <mach/sdrc.h>
+ #include <mach/control.h>
+ #include <mach/syslib.h>
+@@ -250,8 +251,10 @@ static int pcaal1_board_init(void)
+ 	return 0;
+ }
+ 
+-void __naked barebox_arm_reset_vector(void)
++void __bare_init __naked barebox_arm_reset_vector(uint32_t *data)
+ {
++	omap_save_bootinfo();
++
+ 	arm_cpu_lowlevel_init();
+ 
+ 	pcaal1_board_init();
+diff --git a/arch/arm/boards/phycard-a-xl2/lowlevel.c b/arch/arm/boards/phycard-a-xl2/lowlevel.c
+index 07505ff..5e68334 100644
+--- a/arch/arm/boards/phycard-a-xl2/lowlevel.c
++++ b/arch/arm/boards/phycard-a-xl2/lowlevel.c
+@@ -17,8 +17,10 @@
+  *
+  */
+ #include <common.h>
++#include <init.h>
+ #include <io.h>
+ #include <sizes.h>
++#include <mach/generic.h>
+ #include <mach/omap4-mux.h>
+ #include <mach/omap4-silicon.h>
+ #include <mach/omap4-clock.h>
+@@ -83,8 +85,10 @@ static noinline void pcaaxl2_init_lowlevel(void)
+ 	sr32(0x4A30a110, 2, 2, 0x3);  /* enable clocks */
+ }
+ 
+-void barebox_arm_reset_vector(void)
++void __bare_init __naked barebox_arm_reset_vector(uint32_t *data)
+ {
++	omap_save_bootinfo();
++
+ 	arm_cpu_lowlevel_init();
+ 
+ 	if (get_pc() > 0x80000000)
+diff --git a/arch/arm/mach-omap/Makefile b/arch/arm/mach-omap/Makefile
+index 973068d..d42de48 100644
+--- a/arch/arm/mach-omap/Makefile
++++ b/arch/arm/mach-omap/Makefile
+@@ -15,8 +15,8 @@
+ # GNU General Public License for more details.
+ #
+ #
+-obj-$(CONFIG_ARCH_OMAP) += syslib.o omap_devices.o omap_generic.o
+-pbl-$(CONFIG_ARCH_OMAP) += syslib.o
++obj-$(CONFIG_ARCH_OMAP) += syslib.o omap_devices.o omap_generic.o omap_bootinfo.o
++pbl-$(CONFIG_ARCH_OMAP) += syslib.o omap_bootinfo.o
+ obj-$(CONFIG_OMAP_CLOCK_SOURCE_S32K) += s32k_clksource.o
+ obj-$(CONFIG_OMAP_CLOCK_SOURCE_DMTIMER0) += dmtimer0.o
+ obj-$(CONFIG_ARCH_OMAP3) += omap3_generic.o auxcr.o
+diff --git a/arch/arm/mach-omap/am33xx_generic.c b/arch/arm/mach-omap/am33xx_generic.c
+index 3ab16b0..45fefb4 100644
+--- a/arch/arm/mach-omap/am33xx_generic.c
++++ b/arch/arm/mach-omap/am33xx_generic.c
+@@ -25,6 +25,7 @@
+ #include <net.h>
+ #include <mach/am33xx-silicon.h>
+ #include <mach/am33xx-clock.h>
++#include <mach/generic.h>
+ #include <mach/sys_info.h>
+ #include <mach/am33xx-generic.h>
+ 
+@@ -97,7 +98,22 @@ u32 running_in_sdram(void)
+ 
+ static int am33xx_bootsource(void)
+ {
+-	bootsource_set(BOOTSOURCE_MMC); /* only MMC for now */
++	enum bootsource src;
++
++	switch (omap_bootinfo[2] & 0xFF) {
++	case 0x05:
++		src = BOOTSOURCE_NAND;
++		break;
++	case 0x08:
++		src = BOOTSOURCE_MMC;
++		break;
++	case 0x0b:
++		src = BOOTSOURCE_SPI;
++		break;
++	default:
++		src = BOOTSOURCE_UNKNOWN;
++	}
++	bootsource_set(src);
+ 	bootsource_set_instance(0);
+ 	return 0;
+ }
+diff --git a/arch/arm/mach-omap/include/mach/generic.h b/arch/arm/mach-omap/include/mach/generic.h
+index 5a10a54..f1a3efe 100644
+--- a/arch/arm/mach-omap/include/mach/generic.h
++++ b/arch/arm/mach-omap/include/mach/generic.h
+@@ -27,4 +27,7 @@
+ #define cpu_is_omap4xxx()	(0)
+ #endif
+ 
++extern uint32_t omap_bootinfo[3];
++void omap_save_bootinfo(void);
++
+ #endif
+diff --git a/arch/arm/mach-omap/omap3_generic.c b/arch/arm/mach-omap/omap3_generic.c
+index f144813..8b661ff 100644
+--- a/arch/arm/mach-omap/omap3_generic.c
++++ b/arch/arm/mach-omap/omap3_generic.c
+@@ -33,6 +33,7 @@
+ #include <io.h>
+ #include <mach/omap3-silicon.h>
+ #include <mach/gpmc.h>
++#include <mach/generic.h>
+ #include <mach/sdrc.h>
+ #include <mach/control.h>
+ #include <mach/omap3-smx.h>
+@@ -468,12 +469,21 @@ void omap3_core_init(void)
+ static int omap3_bootsource(void)
+ {
+ 	enum bootsource src = BOOTSOURCE_UNKNOWN;
+-	u32 bootsrc = readl(OMAP3_TRACING_VECTOR1);
+ 
+-	if (bootsrc & (1 << 2))
++	switch (omap_bootinfo[1] & 0xFF) {
++	case 0x02:
+ 		src = BOOTSOURCE_NAND;
+-	if (bootsrc & (1 << 6))
++		break;
++	case 0x06:
+ 		src = BOOTSOURCE_MMC;
++		break;
++	case 0x11:
++		src = BOOTSOURCE_USB;
++		break;
++	default:
++		src = BOOTSOURCE_UNKNOWN;
++	}
++
+ 	bootsource_set(src);
+ 	bootsource_set_instance(0);
+ 
+diff --git a/arch/arm/mach-omap/omap4_generic.c b/arch/arm/mach-omap/omap4_generic.c
+index 7d71fdc..4e98205 100644
+--- a/arch/arm/mach-omap/omap4_generic.c
++++ b/arch/arm/mach-omap/omap4_generic.c
+@@ -6,6 +6,7 @@
+ #include <mach/omap4-silicon.h>
+ #include <mach/omap4-mux.h>
+ #include <mach/syslib.h>
++#include <mach/generic.h>
+ #include <mach/gpmc.h>
+ #include <mach/gpio.h>
+ #include <mach/omap4_rom_usb.h>
+@@ -504,14 +505,21 @@ static int omap_vector_init(void)
+ static int omap4_bootsource(void)
+ {
+ 	enum bootsource src = BOOTSOURCE_UNKNOWN;
+-	u32 bootsrc = readl(OMAP4_TRACING_VECTOR3);
+ 
+-	if (bootsrc & (1 << 5))
+-		src = BOOTSOURCE_MMC;
+-	else if (bootsrc & (1 << 3))
++	switch (omap_bootinfo[2] & 0xFF) {
++	case 0x03:
+ 		src = BOOTSOURCE_NAND;
+-	else if (bootsrc & (1<<20))
++		break;
++	case 0x05:
++		src = BOOTSOURCE_MMC;
++		break;
++	case 0x20:
+ 		src = BOOTSOURCE_USB;
++		break;
++	default:
++		src = BOOTSOURCE_UNKNOWN;
++	}
++
+ 	bootsource_set(src);
+ 	bootsource_set_instance(0);
+ 
+diff --git a/arch/arm/mach-omap/omap_bootinfo.S b/arch/arm/mach-omap/omap_bootinfo.S
+new file mode 100644
+index 0000000..ffd0a3d
+--- /dev/null
++++ b/arch/arm/mach-omap/omap_bootinfo.S
+@@ -0,0 +1,25 @@
++#include <config.h>
++#include <linux/linkage.h>
++#include <asm/assembler.h>
++
++.section ".text_bare_init","ax"
++.globl omap_bootinfo
++omap_bootinfo:
++	.word 0x0
++	.word 0x0
++	.word 0x0
++
++.section ".text_bare_init","ax"
++ENTRY(omap_save_bootinfo)
++	/*
++	* save data from rom boot loader
++	*/
++	adr     r2, omap_bootinfo
++	ldr     r1, [r0, #0x00]
++	str     r1, [r2, #0x00]
++	ldr     r1, [r0, #0x04]
++	str     r1, [r2, #0x04]
++	ldr     r1, [r0, #0x08]
++	str     r1, [r2, #0x08]
++	mov	pc, lr
++ENDPROC(omap_save_bootinfo)
+diff --git a/arch/arm/mach-omap/xload.c b/arch/arm/mach-omap/xload.c
+index 3cce3f2..3dbdef5 100644
+--- a/arch/arm/mach-omap/xload.c
++++ b/arch/arm/mach-omap/xload.c
+@@ -9,6 +9,7 @@
+ #include <fcntl.h>
+ #include <sizes.h>
+ #include <filetype.h>
++#include <mach/generic.h>
+ 
+ static void *read_image_head(const char *name)
+ {
+@@ -163,7 +164,8 @@ static void *omap4_xload_boot_usb(void){
+  */
+ static __noreturn int omap_xload(void)
+ {
+-	int (*func)(void) = NULL;
++	int (*func)(void *) = NULL;
++	uint32_t *arg;
+ 
+ 	switch (bootsource_get())
+ 	{
+@@ -198,8 +200,10 @@ static __noreturn int omap_xload(void)
+ 		while (1);
+ 	}
+ 
++	arg = (uint32_t *)&omap_bootinfo;
++
+ 	shutdown_barebox();
+-	func();
++	func(arg);
+ 
+ 	while (1);
+ }
+-- 
+1.7.10.4
+
