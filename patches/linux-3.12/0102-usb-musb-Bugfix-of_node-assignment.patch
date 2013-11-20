@@ -1,0 +1,56 @@
+From: Markus Pargmann <mpa@pengutronix.de>
+Date: Fri, 13 Sep 2013 12:19:16 +0200
+Subject: [PATCH] usb: musb: Bugfix of_node assignment
+
+It is not safe to assign the of_node to a device without driver. The
+device is matched against a list of drivers and the of_node could lead
+to a DT match with the parent driver.
+
+Signed-off-by: Markus Pargmann <mpa@pengutronix.de>
+---
+ drivers/usb/musb/musb_core.c | 12 +++++++++++-
+ drivers/usb/musb/musb_dsps.c |  1 -
+ 2 files changed, 11 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/usb/musb/musb_core.c b/drivers/usb/musb/musb_core.c
+index 0c59481..fbd4479 100644
+--- a/drivers/usb/musb/musb_core.c
++++ b/drivers/usb/musb/musb_core.c
+@@ -2004,6 +2004,7 @@ static int musb_probe(struct platform_device *pdev)
+ 	int		irq = platform_get_irq_byname(pdev, "mc");
+ 	struct resource	*iomem;
+ 	void __iomem	*base;
++	int ret;
+ 
+ 	iomem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+ 	if (!iomem || irq <= 0)
+@@ -2013,7 +2014,16 @@ static int musb_probe(struct platform_device *pdev)
+ 	if (IS_ERR(base))
+ 		return PTR_ERR(base);
+ 
+-	return musb_init_controller(dev, irq, base);
++	if (dev->parent)
++		dev->of_node = dev->parent->of_node;
++
++	ret = musb_init_controller(dev, irq, base);
++	if (ret) {
++		dev->of_node = NULL;
++		return ret;
++	}
++
++	return 0;
+ }
+ 
+ static int musb_remove(struct platform_device *pdev)
+diff --git a/drivers/usb/musb/musb_dsps.c b/drivers/usb/musb/musb_dsps.c
+index bd4138d..189e52c 100644
+--- a/drivers/usb/musb/musb_dsps.c
++++ b/drivers/usb/musb/musb_dsps.c
+@@ -483,7 +483,6 @@ static int dsps_create_musb_pdev(struct dsps_glue *glue,
+ 	musb->dev.parent		= dev;
+ 	musb->dev.dma_mask		= &musb_dmamask;
+ 	musb->dev.coherent_dma_mask	= musb_dmamask;
+-	musb->dev.of_node		= of_node_get(dn);
+ 
+ 	glue->musb = musb;
+ 

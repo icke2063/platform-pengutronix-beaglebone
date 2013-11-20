@@ -1,0 +1,160 @@
+From: Markus Pargmann <mpa@pengutronix.de>
+Date: Wed, 11 Sep 2013 16:49:06 +0200
+Subject: [PATCH] usb: musb: dsps, OTG detection
+
+The USB Controller does not support ID pin change interrupts. So we have
+to use a polling function to detect changes of A/B device state
+(otg_timer). This poll function has to check in several states if a
+other device type might be connected to the USB port. This check is
+triggered by manually starting/stopping a USB Session.
+
+So in A mode, we cancel the currently running session which also
+disables the possibility to detect new devices via interrupt. In B mode,
+we start a session to check for ID-Pin and possibly connected devices.
+
+Whenever a real USB session ends, we have to trigger the otg_timer poll
+function again.
+
+Signed-off-by: Markus Pargmann <mpa@pengutronix.de>
+---
+ drivers/usb/musb/musb_dsps.c | 82 ++++++++++++++++++++++++++++++++++++++++----
+ 1 file changed, 76 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/usb/musb/musb_dsps.c b/drivers/usb/musb/musb_dsps.c
+index aae017c..b415c37 100644
+--- a/drivers/usb/musb/musb_dsps.c
++++ b/drivers/usb/musb/musb_dsps.c
+@@ -144,6 +144,43 @@ static const struct debugfs_reg32 dsps_musb_regs[] = {
+ 	{ "mode",		0xe8 },
+ };
+ 
++/*
++ * Compare driver and hardware mode and update driver state if necessary.
++ * Not all hardware changes actually reach the driver through interrupts.
++ */
++static void dsps_update_mode(struct musb *musb)
++{
++	u8 devctl;
++
++	devctl = dsps_readb(musb->mregs, MUSB_DEVCTL);
++
++	switch (musb->xceiv->state) {
++	case OTG_STATE_A_IDLE:
++		if (devctl & MUSB_DEVCTL_BDEVICE) {
++			dev_dbg(musb->controller, "detected controller state B, software state A\n");
++			musb->xceiv->state = OTG_STATE_B_IDLE;
++		}
++		break;
++	case OTG_STATE_B_IDLE:
++		if (!(devctl & MUSB_DEVCTL_BDEVICE)) {
++			dev_dbg(musb->controller, "detected controller state A, software state B\n");
++			musb->xceiv->state = OTG_STATE_A_IDLE;
++		}
++		break;
++	default:
++		if (!(devctl & MUSB_DEVCTL_SESSION)) {
++			dev_dbg(musb->controller, "detected controller out of session (%x), software state %s\n",
++				devctl,
++				usb_otg_state_string(musb->xceiv->state));
++			if (devctl & MUSB_DEVCTL_BDEVICE)
++				musb->xceiv->state = OTG_STATE_B_IDLE;
++			else
++				musb->xceiv->state = OTG_STATE_A_IDLE;
++		}
++		break;
++	}
++}
++
+ /**
+  * dsps_musb_enable - enable interrupts
+  */
+@@ -195,6 +232,8 @@ static void otg_timer(unsigned long _musb)
+ 	u8 devctl;
+ 	unsigned long flags;
+ 
++	dsps_update_mode(musb);
++
+ 	/*
+ 	 * We poll because DSPS IP's won't expose several OTG-critical
+ 	 * status change events (from the transceiver) otherwise.
+@@ -205,6 +244,16 @@ static void otg_timer(unsigned long _musb)
+ 
+ 	spin_lock_irqsave(&musb->lock, flags);
+ 	switch (musb->xceiv->state) {
++	case OTG_STATE_A_IDLE:
++	case OTG_STATE_A_WAIT_VRISE:
++		/*
++		 * Poll the devctl register to know when the controller switches
++		 * back to B state.
++		 */
++		musb_writeb(mregs, MUSB_DEVCTL,
++				devctl & (~MUSB_DEVCTL_SESSION));
++		mod_timer(&glue->timer, jiffies + wrp->poll_seconds * HZ);
++		break;
+ 	case OTG_STATE_A_WAIT_BCON:
+ 		devctl &= ~MUSB_DEVCTL_SESSION;
+ 		dsps_writeb(musb->mregs, MUSB_DEVCTL, devctl);
+@@ -217,6 +266,8 @@ static void otg_timer(unsigned long _musb)
+ 			musb->xceiv->state = OTG_STATE_A_IDLE;
+ 			MUSB_HST_MODE(musb);
+ 		}
++		mod_timer(&glue->timer,
++				jiffies + wrp->poll_seconds * HZ);
+ 		break;
+ 	case OTG_STATE_A_WAIT_VFALL:
+ 		musb->xceiv->state = OTG_STATE_A_WAIT_VRISE;
+@@ -224,12 +275,24 @@ static void otg_timer(unsigned long _musb)
+ 			    MUSB_INTR_VBUSERROR << wrp->usb_shift);
+ 		break;
+ 	case OTG_STATE_B_IDLE:
++		/*
++		 * There's no ID-changed IRQ, so we have no good way to tell
++		 * when to switch to the A-Default state machine (by setting
++		 * the DEVCTL.Session bit).
++		 *
++		 * Workaround:  whenever we're in B_IDLE, try setting the
++		 * session flag every few seconds.  If it works, ID was
++		 * grounded and we're now in the A-Default state machine.
++		 *
++		 * NOTE: setting the session flag is _supposed_ to trigger
++		 * SRP but clearly it doesn't.
++		 */
++		musb_writeb(mregs, MUSB_DEVCTL, devctl | MUSB_DEVCTL_SESSION);
+ 		devctl = dsps_readb(mregs, MUSB_DEVCTL);
+-		if (devctl & MUSB_DEVCTL_BDEVICE)
+-			mod_timer(&glue->timer,
+-					jiffies + wrp->poll_seconds * HZ);
+-		else
++		if (!(devctl & MUSB_DEVCTL_BDEVICE))
+ 			musb->xceiv->state = OTG_STATE_A_IDLE;
++		mod_timer(&glue->timer,
++				jiffies + wrp->poll_seconds * HZ);
+ 		break;
+ 	default:
+ 		break;
+@@ -342,7 +405,6 @@ static irqreturn_t dsps_interrupt(int irq, void *hci)
+ 			MUSB_HST_MODE(musb);
+ 			musb->xceiv->otg->default_a = 1;
+ 			musb->xceiv->state = OTG_STATE_A_WAIT_VRISE;
+-			del_timer(&glue->timer);
+ 		} else {
+ 			musb->is_active = 0;
+ 			MUSB_DEV_MODE(musb);
+@@ -363,8 +425,16 @@ static irqreturn_t dsps_interrupt(int irq, void *hci)
+ 		ret |= musb_interrupt(musb);
+ 
+ 	/* Poll for ID change */
+-	if (musb->xceiv->state == OTG_STATE_B_IDLE)
++	switch (musb->xceiv->state) {
++	case OTG_STATE_A_IDLE:
++	case OTG_STATE_A_WAIT_BCON:
++	case OTG_STATE_A_WAIT_VRISE:
++	case OTG_STATE_B_IDLE:
+ 		mod_timer(&glue->timer, jiffies + wrp->poll_seconds * HZ);
++		break;
++	default:
++		break;
++	}
+ out:
+ 	spin_unlock_irqrestore(&musb->lock, flags);
+ 

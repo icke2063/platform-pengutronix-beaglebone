@@ -1,0 +1,24 @@
+From: Markus Pargmann <mpa@pengutronix.de>
+Date: Thu, 17 Oct 2013 16:07:26 +0200
+Subject: [PATCH] ARM: dts: regulator tps65910 node
+
+Signed-off-by: Markus Pargmann <mpa@pengutronix.de>
+---
+ arch/arm/boot/dts/tps65910.dtsi | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/arch/arm/boot/dts/tps65910.dtsi b/arch/arm/boot/dts/tps65910.dtsi
+index 92693a8..b0ac665 100644
+--- a/arch/arm/boot/dts/tps65910.dtsi
++++ b/arch/arm/boot/dts/tps65910.dtsi
+@@ -82,5 +82,10 @@
+ 			reg = <12>;
+ 			regulator-compatible = "vmmc";
+ 		};
++
++		vbb_reg: regulator@13 {
++			reg = <13>;
++			regulator-compatible = "vbb";
++		};
+ 	};
+ };

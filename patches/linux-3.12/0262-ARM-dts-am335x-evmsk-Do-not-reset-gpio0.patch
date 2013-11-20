@@ -1,0 +1,28 @@
+From: Rajendra Nayak <rnayak@ti.com>
+Date: Wed, 9 Oct 2013 15:42:01 +0530
+Subject: [PATCH] ARM: dts: am335x-evmsk: Do not reset gpio0
+
+Do not reset GPIO0 at  boot-up because GPIO0 is used
+on AM335x EVM-SK to control VTT regulators on DDR3.
+
+Without this EVM-SK boards fail to boot-up because
+of DDR3 corruption.
+
+Signed-off-by: Rajendra Nayak <rnayak@ti.com>
+Signed-off-by: Benoit Cousson <bcousson@baylibre.com>
+---
+ arch/arm/boot/dts/am335x-evmsk.dts | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/arch/arm/boot/dts/am335x-evmsk.dts b/arch/arm/boot/dts/am335x-evmsk.dts
+index 5f12b28..1a7e0d9 100644
+--- a/arch/arm/boot/dts/am335x-evmsk.dts
++++ b/arch/arm/boot/dts/am335x-evmsk.dts
+@@ -433,3 +433,7 @@
+ &aes {
+ 	status = "okay";
+ };
++
++&gpio0 {
++	ti,no-reset-on-init;
++};
