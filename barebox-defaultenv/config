@@ -3,6 +3,9 @@
 # change network settings in /env/network/eth0
 # change mtd partition settings and automountpoints in /env/init/*
 
+# set to false if you do not want to have colors
+global.allow_color=true
+
 # user (used for network filenames)
 global.user=none
 
@@ -11,4 +14,6 @@ global.autoboot_timeout=3
 
 # default boot entry (one of /env/boot/*)
 global.boot.default=sd
-global.linux.bootargs.base="console=ttyO0,115200"
+
+# base bootargs
+global.linux.bootargs.base="console=ttyO0,115200n8"
