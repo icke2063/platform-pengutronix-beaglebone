@@ -1,0 +1,22 @@
+From: Markus Pargmann <mpa@pengutronix.de>
+Date: Wed, 8 Jan 2014 13:17:32 +0100
+Subject: [PATCH] Release 3.12/customers/ptx/bbb/20140108-1
+
+Signed-off-by: Markus Pargmann <mpa@pengutronix.de>
+---
+ Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Makefile b/Makefile
+index 67077ad..3651ac7 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1,7 +1,7 @@
+ VERSION = 3
+ PATCHLEVEL = 12
+ SUBLEVEL = 0
+-EXTRAVERSION =
++EXTRAVERSION =-20140108-1
+ NAME = One Giant Leap for Frogkind
+ 
+ # *DOCUMENTATION*

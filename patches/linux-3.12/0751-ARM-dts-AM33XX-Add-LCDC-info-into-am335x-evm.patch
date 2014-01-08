@@ -114,10 +114,10 @@ index ff834ad..eabacf9 100644
  	status = "okay";
  };
 diff --git a/arch/arm/boot/dts/am33xx.dtsi b/arch/arm/boot/dts/am33xx.dtsi
-index b1f7e76..b7d3abb 100644
+index 502ced1..85a3bc0 100644
 --- a/arch/arm/boot/dts/am33xx.dtsi
 +++ b/arch/arm/boot/dts/am33xx.dtsi
-@@ -684,6 +684,15 @@
+@@ -697,6 +697,15 @@
  			status = "disabled";
  		};
  

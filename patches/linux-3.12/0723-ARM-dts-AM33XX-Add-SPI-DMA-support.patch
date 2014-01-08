@@ -12,7 +12,7 @@ Signed-off-by: Benoit Cousson <bcousson@baylibre.com>
  1 file changed, 10 insertions(+)
 
 diff --git a/arch/arm/boot/dts/am33xx.dtsi b/arch/arm/boot/dts/am33xx.dtsi
-index 799f133..a49da7f 100644
+index be0493d..a8f9ccf 100644
 --- a/arch/arm/boot/dts/am33xx.dtsi
 +++ b/arch/arm/boot/dts/am33xx.dtsi
 @@ -340,6 +340,11 @@

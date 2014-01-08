@@ -1,0 +1,31 @@
+From: Mugunthan V N <mugunthanvnm@ti.com>
+Date: Sat, 21 Sep 2013 00:50:40 +0530
+Subject: [PATCH] drivers: net: cpsw: use cpsw-phy-sel driver to configure phy
+ mode
+
+Phy mode can be configured via the cpsw-phy-sel driver, this patch enabled the
+cpsw driver to utilise the api provided by the cpsw-phy-sel driver to configure
+the phy mode.
+
+Signed-off-by: Mugunthan V N <mugunthanvnm@ti.com>
+Tested-by: Daniel Mack <zonque@gmail.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/ethernet/ti/cpsw.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/drivers/net/ethernet/ti/cpsw.c b/drivers/net/ethernet/ti/cpsw.c
+index ace1af9..9cfa586 100644
+--- a/drivers/net/ethernet/ti/cpsw.c
++++ b/drivers/net/ethernet/ti/cpsw.c
+@@ -1014,6 +1014,10 @@ static void cpsw_slave_open(struct cpsw_slave *slave, struct cpsw_priv *priv)
+ 		dev_info(priv->dev, "phy found : id is : 0x%x\n",
+ 			 slave->phy->phy_id);
+ 		phy_start(slave->phy);
++
++		/* Configure GMII_SEL register */
++		cpsw_phy_sel(&priv->pdev->dev, slave->phy->interface,
++			     slave->slave_num);
+ 	}
+ }
+ 

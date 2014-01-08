@@ -1,0 +1,28 @@
+From: Markus Pargmann <mpa@pengutronix.de>
+Date: Mon, 16 Dec 2013 16:15:04 +0100
+Subject: [PATCH] DT doc: net: cpsw mac-address is optional
+
+mac-address is an optional property. If no mac-address is set, a random
+mac-address will be generated.
+
+Signed-off-by: Markus Pargmann <mpa@pengutronix.de>
+---
+ Documentation/devicetree/bindings/net/cpsw.txt | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Documentation/devicetree/bindings/net/cpsw.txt b/Documentation/devicetree/bindings/net/cpsw.txt
+index 05d660e..c39f077 100644
+--- a/Documentation/devicetree/bindings/net/cpsw.txt
++++ b/Documentation/devicetree/bindings/net/cpsw.txt
+@@ -30,10 +30,10 @@ Required properties:
+ - phy_id		: Specifies slave phy id
+ - phy-mode		: The interface between the SoC and the PHY (a string
+ 			  that of_get_phy_mode() can understand)
+-- mac-address		: Specifies slave MAC address
+ 
+ Optional properties:
+ - dual_emac_res_vlan	: Specifies VID to be used to segregate the ports
++- mac-address		: Specifies slave MAC address
+ 
+ Note: "ti,hwmods" field is used to fetch the base address and irq
+ resources from TI, omap hwmod data base during device registration.

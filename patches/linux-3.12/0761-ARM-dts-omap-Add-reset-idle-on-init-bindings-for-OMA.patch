@@ -40,10 +40,10 @@ index 91b7049..808c154 100644
  Example:
  
 diff --git a/arch/arm/boot/dts/am33xx.dtsi b/arch/arm/boot/dts/am33xx.dtsi
-index b7d3abb..7947bfb 100644
+index 85a3bc0..3662745 100644
 --- a/arch/arm/boot/dts/am33xx.dtsi
 +++ b/arch/arm/boot/dts/am33xx.dtsi
-@@ -674,6 +674,7 @@
+@@ -687,6 +687,7 @@
  			reg = <0x44d00000 0x4000	/* M3 UMEM */
  			       0x44d80000 0x2000>;	/* M3 DMEM */
  			ti,hwmods = "wkup_m3";
@@ -51,7 +51,7 @@ index b7d3abb..7947bfb 100644
  		};
  
  		elm: elm@48080000 {
-@@ -713,6 +714,7 @@
+@@ -726,6 +727,7 @@
  		gpmc: gpmc@50000000 {
  			compatible = "ti,am3352-gpmc";
  			ti,hwmods = "gpmc";

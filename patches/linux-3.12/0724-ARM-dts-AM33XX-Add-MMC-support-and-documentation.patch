@@ -130,7 +130,7 @@ index 4f339fa..55fd194 100644
 +	vmmc-supply = <&vmmc_reg>;
 +};
 diff --git a/arch/arm/boot/dts/am33xx.dtsi b/arch/arm/boot/dts/am33xx.dtsi
-index a49da7f..179b0bc 100644
+index a8f9ccf..746ad7f 100644
 --- a/arch/arm/boot/dts/am33xx.dtsi
 +++ b/arch/arm/boot/dts/am33xx.dtsi
 @@ -245,6 +245,44 @@

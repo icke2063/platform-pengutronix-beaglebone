@@ -13,10 +13,10 @@ Signed-off-by: Benoit Cousson <bcousson@baylibre.com>
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/arch/arm/boot/dts/am33xx.dtsi b/arch/arm/boot/dts/am33xx.dtsi
-index 4f633ed..b1f7e76 100644
+index 4518ee6..502ced1 100644
 --- a/arch/arm/boot/dts/am33xx.dtsi
 +++ b/arch/arm/boot/dts/am33xx.dtsi
-@@ -726,7 +726,7 @@
+@@ -739,7 +739,7 @@
  			compatible = "ti,omap4-aes";
  			ti,hwmods = "aes";
  			reg = <0x53500000 0xa0>;

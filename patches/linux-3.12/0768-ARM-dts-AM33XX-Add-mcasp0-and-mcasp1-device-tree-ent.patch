@@ -13,10 +13,10 @@ Signed-off-by: Benoit Cousson <bcousson@baylibre.com>
  1 file changed, 24 insertions(+)
 
 diff --git a/arch/arm/boot/dts/am33xx.dtsi b/arch/arm/boot/dts/am33xx.dtsi
-index 7947bfb..b3a665e 100644
+index 3662745..d486804 100644
 --- a/arch/arm/boot/dts/am33xx.dtsi
 +++ b/arch/arm/boot/dts/am33xx.dtsi
-@@ -742,5 +742,29 @@
+@@ -755,5 +755,29 @@
  			       <&edma 5>;
  			dma-names = "tx", "rx";
  		};

@@ -1,0 +1,24 @@
+From: Juergen Beisert <jbe@pengutronix.de>
+Date: Fri, 15 Nov 2013 14:56:21 +0100
+Subject: [PATCH] ARM/AM335x: enable OPP and CPU frequency scaling for AM33xx
+
+Enable these features if only the AM33xx is enabled (single platform build)
+
+Signed-off-by: Juergen Beisert <jbe@pengutronix.de>
+---
+ arch/arm/mach-omap2/Kconfig | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/arch/arm/mach-omap2/Kconfig b/arch/arm/mach-omap2/Kconfig
+index b5fb5f7..7244e05 100644
+--- a/arch/arm/mach-omap2/Kconfig
++++ b/arch/arm/mach-omap2/Kconfig
+@@ -87,6 +87,8 @@ config ARCH_OMAP2PLUS
+ 	select ARCH_HAS_BANDGAP
+ 	select ARCH_HAS_CPUFREQ
+ 	select ARCH_HAS_HOLES_MEMORYMODEL
++	select ARCH_HAS_OPP
++	select PM_OPP if PM
+ 	select ARCH_OMAP
+ 	select ARCH_REQUIRE_GPIOLIB
+ 	select CLKDEV_LOOKUP

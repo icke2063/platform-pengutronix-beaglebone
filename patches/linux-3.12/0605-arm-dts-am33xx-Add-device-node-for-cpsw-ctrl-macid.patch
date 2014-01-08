@@ -1,0 +1,27 @@
+From: Markus Pargmann <mpa@pengutronix.de>
+Date: Mon, 16 Dec 2013 16:29:04 +0100
+Subject: [PATCH] arm: dts: am33xx, Add device node for cpsw-ctrl-macid
+
+Signed-off-by: Markus Pargmann <mpa@pengutronix.de>
+---
+ arch/arm/boot/dts/am33xx.dtsi | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/arch/arm/boot/dts/am33xx.dtsi b/arch/arm/boot/dts/am33xx.dtsi
+index 02e237a..9cc66f1 100644
+--- a/arch/arm/boot/dts/am33xx.dtsi
++++ b/arch/arm/boot/dts/am33xx.dtsi
+@@ -600,6 +600,13 @@
+ 				reg= <0x44e10650 0x4>;
+ 				reg-names = "gmii-sel";
+ 			};
++
++			cpsw_ctrl_macid: cpsw-ctrl-macid@44e10630 {
++				compatible = "ti,am3352-cpsw-ctrl-macid";
++				#ti,mac-address-ctrl-cells = <1>;
++				reg = <0x44e10630 0x16>;
++				reg-names = "ctrl-macid";
++			};
+ 		};
+ 
+ 		ocmcram: ocmcram@40300000 {

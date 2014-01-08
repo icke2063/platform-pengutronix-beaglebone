@@ -1,0 +1,26 @@
+From: Markus Pargmann <mpa@pengutronix.de>
+Date: Wed, 8 Jan 2014 12:46:32 +0100
+Subject: [PATCH] arm: dtsi: am335x-bone-common, usb0 is peripheral only
+
+On both beaglebones, the usb0 vbus line is directly connected to the
+TPS PMIC and the vbus sense pin of the am335x. But vbus can't be pulled
+up for host operation on both boards, so it is limited to peripheral
+mode.
+
+Signed-off-by: Markus Pargmann <mpa@pengutronix.de>
+---
+ arch/arm/boot/dts/am335x-bone-common.dtsi | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/arm/boot/dts/am335x-bone-common.dtsi b/arch/arm/boot/dts/am335x-bone-common.dtsi
+index e3f27ec..da2db9b 100644
+--- a/arch/arm/boot/dts/am335x-bone-common.dtsi
++++ b/arch/arm/boot/dts/am335x-bone-common.dtsi
+@@ -197,6 +197,7 @@
+ 
+ 	usb@47401000 {
+ 		status = "okay";
++		dr_mode = "peripheral";
+ 	};
+ 
+ 	usb@47401800 {
