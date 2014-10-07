@@ -1,6 +1,6 @@
 #
 # Automatically generated file; DO NOT EDIT.
-# PTXdist 2014.09.0
+# PTXdist 2014.10.0
 #
 PTXCONF__platformconfig_MAGIC__=y
 
@@ -16,10 +16,10 @@ PTXCONF__platformconfig_MAGIC__=y
 # ------------------------------------
 #
 PTXCONF_PLATFORM="pengutronix-beaglebone"
-PTXCONF_PLATFORM_VERSION="-2014.09.0"
+PTXCONF_PLATFORM_VERSION="-${PTXDIST_BSP_AUTOVERSION}"
 PTXCONF_RUNTIME=y
 PTXCONF_BUILDTIME=y
-PTXCONF_PLATFORMCONFIG_VERSION="2014.09.0"
+PTXCONF_PLATFORMCONFIG_VERSION="2014.10.0"
 
 #
 # architecture                  
